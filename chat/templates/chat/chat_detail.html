@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h2>{{ session.title }}</h2>
+    <a href="{% url 'chat_list' %}">← Назад</a>
+
+    <div class="messages">
+        {% for msg in messages %}
+            <div class="{% if msg.role == 'user' %}user{% else %}bot{% endif %}">
+                <strong>{{ msg.role|title }}:</strong> {{ msg.content }}
+            </div>
+        {% endfor %}
+    </div>
+
+    <form action="{% url 'send_message' session.id %}" method="post">
+        {% csrf_token %}
+        <textarea name="message" placeholder="Введите сообщение..."></textarea>
+        <button type="submit">Отправить</button>
+    </form>
+
+</body>
+</html>

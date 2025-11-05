@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+   <h2>Мои чаты</h2>
+    <a href="{% url 'new_chat' %}">+ Новый чат</a>
+
+    <ul>
+        {% for session in sessions %}
+            <li>
+                <a href="{% url 'chat_detail' session.id %}">{{ session.title }}</a>
+                <small>{{ session.created_at }}</small>
+            </li>
+        {% empty %}
+            <li>У вас пока нет чатов.</li>
+        {% endfor %}
+    </ul>
+
+</body>
+</html>
