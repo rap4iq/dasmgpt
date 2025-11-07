@@ -6,4 +6,5 @@ urlpatterns = [
     path('new/', views.new_chat, name='new_chat'),
     path('<int:session_id>/', views.chat_detail, name='chat_detail'),
     path('<int:session_id>/send/', views.send_message, name='send_message'),
+    path('<int:session_id>/get/', views.get_new_messages, name='get_new_messages'),
 ]

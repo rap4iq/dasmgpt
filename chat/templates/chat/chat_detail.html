@@ -1,26 +1,214 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>{{ session.title }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .chat-container { max-width: 800px; margin: auto; padding: 20px; }
+        .messages {
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            padding: 8px 12px;
+            border-radius: 18px;
+            margin-bottom: 8px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .user { background-color: #007bff; color: white; align-self: flex-end; }
+        .bot { background-color: #f1f1f1; color: black; align-self: flex-start; }
+        .bot pre { background-color: #e0e0e0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .bot-chart { width: 100%; height: 400px; }
+        .form-container { display: flex; }
+        .form-container textarea { flex-grow: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        .form-container button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .form-container button:disabled { background-color: #ccc; }
+        #typing-indicator { display: none; margin-bottom: 10px; color: #777; }
+    </style>
 </head>
 <body>
-    <h2>{{ session.title }}</h2>
-    <a href="{% url 'chat_list' %}">← Назад</a>
 
-    <div class="messages">
-        {% for msg in messages %}
-            <div class="{% if msg.role == 'user' %}user{% else %}bot{% endif %}">
-                <strong>{{ msg.role|title }}:</strong> {{ msg.content }}
-            </div>
-        {% endfor %}
+    <div class="chat-container">
+        <h2>{{ session.title }}</h2>
+        <a href="{% url 'chat_list' %}">← Назад ко всем чатам</a>
+
+        <div class="messages" id="message-list">
+            {% for msg in messages %}
+                {% include 'chat/components/message_block.html' with message=msg %}
+            {% endfor %}
+        </div>
+
+        <div id="typing-indicator">DasmGPT печатает...</div>
+
+        <form id="chat-form" class="form-container">
+            {% csrf_token %}
+            <textarea id="message-input" name="message" placeholder="Введите сообщение..."></textarea>
+            <button id="send-button" type="submit">Отправить</button>
+        </form>
     </div>
 
-    <form action="{% url 'send_message' session.id %}" method="post">
-        {% csrf_token %}
-        <textarea name="message" placeholder="Введите сообщение..."></textarea>
-        <button type="submit">Отправить</button>
-    </form>
+    <script>
+        // --- Получаем нужные элементы ---
+        const messageList = document.getElementById('message-list');
+        const messageInput = document.getElementById('message-input');
+        const chatForm = document.getElementById('chat-form');
+        const sendButton = document.getElementById('send-button');
+        const typingIndicator = document.getElementById('typing-indicator');
 
+        // --- URL-адреса, которые мы создали в urls.py ---
+        const sendUrl = "{% url 'send_message' session.id %}";
+        const getUrl = "{% url 'get_new_messages' session.id %}";
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        // Переменная для "опроса" (polling)
+        let pollingInterval;
+        let lastMessageId = 0; // Отслеживаем последнее полученное ID
+
+        // На старте найдем последнее ID, чтобы не дублировать
+        document.addEventListener('DOMContentLoaded', () => {
+            scrollToBottom();
+            const lastMsg = messageList.querySelector('.message:last-child');
+            if (lastMsg) {
+                lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+            }
+        });
+
+        // --- Обработчик отправки формы ---
+        chatForm.addEventListener('submit', function (e) {
+            e.preventDefault(); // <-- ОТМЕНЯЕМ перезагрузку страницы
+
+            const messageText = messageInput.value.trim();
+            if (!messageText) return;
+
+            // Блокируем кнопку и поле
+            setLoadingState(true);
+
+            // Отправляем JSON-запрос в send_message view
+            fetch(sendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ message: messageText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'processing') {
+                    // 1. Добавляем HTML-сообщение пользователя (которое вернул view)
+                    addMessageHtml(data.user_message_html);
+                    // 2. Запускаем "опрос" (polling)
+                    startPolling();
+                } else {
+                    // Обработка ошибки
+                    setLoadingState(false);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка отправки:', error);
+                setLoadingState(false);
+            });
+        });
+
+        // --- Функция: Блокировка/Разблокировка интерфейса ---
+        function setLoadingState(isLoading) {
+            messageInput.disabled = isLoading;
+            sendButton.disabled = isLoading;
+            if (isLoading) {
+                typingIndicator.style.display = 'block';
+                messageInput.value = ''; // Очищаем поле
+            } else {
+                typingIndicator.style.display = 'none';
+            }
+        }
+
+        // --- Функция: "Опрос" (Polling) ---
+        function startPolling() {
+            if (pollingInterval) return; // Уже запущен
+
+            pollingInterval = setInterval(() => {
+                // Звоним в get_new_messages
+                fetch(`${getUrl}?last_message_id=${lastMessageId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // УРА, ОТВЕТ ГОТОВ!
+                            stopPolling();
+                            addMessageHtml(data.message_html);
+
+                            // 5. РИСУЕМ ГРАФИК (ТЗ п.5)
+                            if (data.data_payload && data.data_payload.plotly_json) {
+                                renderPlotlyChart(data.data_payload.plotly_json);
+                            }
+                        }
+                        // Если data.status === 'pending', мы ничего не делаем и ждем
+                    })
+                    .catch(error => {
+                        console.error('Ошибка "опроса":', error);
+                        stopPolling();
+                    });
+            }, 2500); // Проверяем каждые 2.5 секунды
+        }
+
+        // --- Функция: Остановка "опроса" ---
+        function stopPolling() {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+            setLoadingState(false); // Разблокируем интерфейс
+        }
+
+        // --- Функция: Добавление HTML в чат ---
+        function addMessageHtml(html) {
+            // Вставляем HTML, который прислал view
+            messageList.insertAdjacentHTML('beforeend', html);
+            // Обновляем ID
+            const lastMsg = messageList.querySelector('.message:last-child');
+            if (lastMsg) {
+                lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+            }
+            scrollToBottom();
+        }
+
+        // --- Функция: Рендеринг графика Plotly ---
+        function renderPlotlyChart(plotlyJson) {
+            try {
+                const chartData = JSON.parse(plotlyJson);
+                // Создаем уникальный ID для графика
+                const chartId = 'chart-' + new Date().getTime();
+
+                // Создаем <div> для графика
+                const chartDiv = document.createElement('div');
+                chartDiv.id = chartId;
+                chartDiv.className = 'bot-chart'; // Стилизуем
+                messageList.appendChild(chartDiv);
+
+                // РИСУЕМ!
+                Plotly.newPlot(chartId, chartData.data, chartData.layout, {
+                    responsive: true,
+                    // Добавляем кнопку "Скачать PNG" (ТЗ п.5)
+                    displaylogo: false,
+                    modeBarButtonsToRemove: ['sendDataToCloud']
+                });
+
+                scrollToBottom();
+            } catch (e) {
+                console.error("Ошибка рендеринга Plotly:", e);
+            }
+        }
+
+        // --- Функция: Прокрутка вниз ---
+        function scrollToBottom() {
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+    </script>
 </body>
 </html>

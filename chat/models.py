@@ -33,15 +33,15 @@ class Message(models.Model):
         return f"{self.role}: {self.content[:50]}"
 
 
-class ChartFile(models.Model):
-    session = models.ForeignKey(
-        ChatSession,
-        on_delete=models.CASCADE,
-        related_name='charts'
-    )
-    file = models.FileField(upload_to='charts/%Y/%m/%d/')
-    format = models.CharField(max_length=10)  # например: png, pdf
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.format.upper()} файл для {self.session.title}"
+# class ChartFile(models.Model):
+#     session = models.ForeignKey(
+#         ChatSession,
+#         on_delete=models.CASCADE,
+#         related_name='charts'
+#     )
+#     file = models.FileField(upload_to='charts/%Y/%m/%d/')
+#     format = models.CharField(max_length=10)  # например: png, pdf
+#     created_at = models.DateTimeField(auto_now_add=True)
+#
+#     def __str__(self):
+#         return f"{self.format.upper()} файл для {self.session.title}"
