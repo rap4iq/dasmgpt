@@ -1,15 +1,109 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - DasmGPT</title>
+    <!-- 1. Подключаем Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body {
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+        }
+
+        /* 2. (ВАЖНО) Стилизуем элементы, которые Django генерирует через form.as_p */
+        .form-as-p {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem; /* space-y-4 */
+        }
+        .form-as-p p {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .form-as-p label {
+            display: block;
+            color: #D1D5DB; /* text-gray-300 */
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 500; /* font-medium */
+            margin-bottom: 0.5rem; /* mb-2 */
+        }
+        .form-as-p input[type="text"],
+        .form-as-p input[type="email"],
+        .form-as-p input[type="password"] {
+            width: 100%;
+            padding: 0.5rem 0.75rem; /* px-3 py-2 */
+            background-color: #374151; /* bg-gray-700 */
+            border: 1px solid #4B5563; /* border-gray-600 */
+            border-radius: 0.375rem; /* rounded-md */
+            color: white;
+        }
+        .form-as-p input:focus {
+            outline: none;
+            border-color: #3B82F6; /* blue-500 */
+            box-shadow: 0 0 0 2px #3B82F6; /* ring-2 ring-blue-500 */
+        }
+
+        /* Стилизация ошибок поля (ul.errorlist) */
+        .form-as-p ul.errorlist {
+            color: #FCA5A5; /* text-red-300 */
+            font-size: 0.875rem; /* text-sm */
+            margin-top: 0.5rem; /* mt-2 */
+            list-style-position: inside;
+            padding-left: 0.5rem;
+        }
+
+        /* Стилизация общих ошибок (non-field errors) */
+        .form-non-field-errors {
+             margin-bottom: 1rem;
+             padding: 0.75rem;
+             border-radius: 0.375rem;
+             background-color: #991B1B; /* bg-red-800 */
+             color: #FEE2E2; /* text-red-100 */
+        }
+    </style>
 </head>
-<body>
-    <h2>Регистрация</h2>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Зарегистрироваться</button>
-    </form>
+<body class="antialiased flex items-center justify-center py-12 px-4">
+
+    <div class="max-w-md w-full mx-auto p-8 bg-gray-800 rounded-lg shadow-xl">
+        <h2 class="text-3xl font-bold text-center text-white mb-6">
+            Регистрация в DasmGPT
+        </h2>
+
+        <!-- Блок для НЕ полевых ошибок -->
+        {% if form.non_field_errors %}
+            <div class="form-non-field-errors">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- 3. Оборачиваем form.as_p в класс form-as-p -->
+        <form method="POST" action="{% url 'register' %}" class="form-as-p">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <div>
+                <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-150 mt-4">
+                    Зарегистрироваться
+                </button>
+            </div>
+
+            <div class="mt-6 text-center">
+                <p class="text-sm text-gray-400">
+                    Уже есть аккаунт?
+                    <a href="{% url 'login' %}" class="font-medium text-blue-400 hover:text-blue-300">
+                        Войти
+                    </a>
+                </p>
+            </div>
+        </form>
+    </div>
+
 </body>
 </html>

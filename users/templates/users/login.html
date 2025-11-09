@@ -1,21 +1,82 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - DasmGPT</title>
+    <!-- 1. Подключаем Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body {
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+            height: 100%;
+        }
+    </style>
 </head>
-<body>
-    <h2>Вход</h2>
-    <form method="post">
-        {% csrf_token %}
-        <label>Email</label>
-        <input type="email" name="email" required>
-        <label>Пароль</label>
-        <input type="password" name="password" required>
-        <button type="submit">Войти</button>
-    </form>
+<body class="antialiased flex items-center justify-center min-h-screen">
 
-    <p><a href="{% url 'password_reset' %}">Забыли пароль?</a></p>
-    <p><a href="{% url 'register' %}">Регистрация</a></p>
+    <div class="max-w-md w-full mx-auto p-8 bg-gray-800 rounded-lg shadow-xl">
+        <h2 class="text-3xl font-bold text-center text-white mb-6">
+            Вход в DasmGPT
+        </h2>
+
+        <!-- Блок для сообщений об ошибках (из views.py) -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="mb-4 p-3 rounded-md
+                    {% if message.tags == 'error' %} bg-red-800 text-red-100 {% else %} bg-blue-800 text-blue-100 {% endif %}"
+                     role="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- 2. Используем action, как в вашем views.py -->
+        <form method="POST" action="{% url 'login' %}">
+            {% csrf_token %}
+            <!-- Перехватываем 'next' URL, чтобы перенаправить пользователя назад -->
+            <input type="hidden" name="next" value="{{ request.GET.next }}">
+
+            <!-- 3. Стилизуем поля из вашего шаблона -->
+            <div class="mb-4">
+                <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                <input type="email" name="email" id="email"
+                       class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       required>
+            </div>
+
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <label for="password" class="block text-sm font-medium text-gray-300">Пароль</label>
+                    <!-- 4. Ссылка на сброс пароля -->
+                    <a href="{% url 'password_reset' %}" class="text-sm text-blue-400 hover:text-blue-300">
+                        Забыли пароль?
+                    </a>
+                </div>
+                <input type="password" name="password" id="password"
+                       class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       required>
+            </div>
+
+            <div>
+                <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-150">
+                    Войти
+                </button>
+            </div>
+
+            <!-- 5. Ссылка на регистрацию -->
+            <div class="mt-6 text-center">
+                <p class="text-sm text-gray-400">
+                    Нет аккаунта?
+                    <a href="{% url 'register' %}" class="font-medium text-blue-400 hover:text-blue-300">
+                        Зарегистрируйтесь
+                    </a>
+                </p>
+            </div>
+        </form>
+    </div>
+
 </body>
 </html>

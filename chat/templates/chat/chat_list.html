@@ -1,23 +1,510 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>DasmGPT</title>
+
+    <!-- 1. Актуальная версия Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.33.0.min.js"></script>
+
+    <!-- Стили -->
+    <style>
+        /* --- Стили для всей страницы --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f4f4;
+            overflow: hidden; /* (ВАЖНО) Убираем прокрутку у body */
+        }
+
+        /* --- Левая панель (Список чатов) --- */
+        .sidebar {
+            width: 280px;
+            background-color: #202123;
+            color: white;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 30px); /* 100% высоты минус padding */
+            flex-shrink: 0; /* Не сжимать сайдбар */
+        }
+        .sidebar-header {
+            padding-bottom: 15px;
+            border-bottom: 1px solid #444;
+        }
+        .sidebar-header a.new-chat-btn {
+            display: block;
+            padding: 10px;
+            background-color: #343541;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .sidebar-header a.new-chat-btn:hover {
+            background-color: #444554;
+        }
+
+        .chat-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .chat-list-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            justify-content: space-between;
+        }
+        .chat-list-item:hover, .chat-list-item.active {
+            background-color: #343541;
+        }
+        .chat-list-item .chat-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1;
+        }
+        .chat-list-item .chat-actions {
+            display: none; /* Показываем при наведении */
+            margin-left: 10px;
+        }
+        .chat-list-item:hover .chat-actions {
+            display: flex;
+        }
+        .chat-actions button {
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .chat-actions button:hover {
+            color: white;
+        }
+
+        .sidebar-footer {
+            margin-top: auto; /* Прижимаем к низу */
+            padding-top: 15px;
+            border-top: 1px solid #444;
+        }
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            width: auto; /* Не растягивать */
+            padding: 8px 10px;
+            background-color: #343541;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .logout-btn:hover {
+            background-color: #444554;
+        }
+        .logout-btn svg {
+            margin-right: 8px;
+        }
+
+
+        /* --- Правая панель (Активный чат) --- */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-x: hidden; /* (ВАЖНО) Обрезаем "вылезание" */
+            min-width: 0;       /* (ВАЖНО) Позволяем flex-элементу сжиматься */
+        }
+
+        .chat-container {
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px); /* 100% - padding */
+            box-sizing: border-box;
+        }
+        .chat-container h2 {
+            margin-top: 0;
+        }
+
+        .messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: white;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- (ИСПРАВЛЕНО v3) Стили сообщения --- */
+        .message {
+            padding: 8px 12px;
+            border-radius: 18px;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+            max-width: 100%;      /* Сообщение может занимать 100%... */
+            box-sizing: border-box;
+        }
+        .user {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            max-width: 70%;       /* ...но .user и .bot ограничиваются */
+        }
+        .bot {
+            background-color: #f1f1f1;
+            color: black;
+            align-self: flex-start;
+            max-width: 100%;      /* Бот занимает 100% для кнопок */
+        }
+        .bot-chart { width: 100%; height: 400px; }
+
+        /* --- (ИСПРАВЛЕНО v3) Стили для кнопок "Excel" / "SQL" --- */
+        .message-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #e0e0e0;
+            max-width: 100%; /* Ограничиваем ширину */
+            box-sizing: border-box;
+        }
+        .message-actions details {
+            cursor: pointer;
+            font-size: 13px;
+            color: #555;
+            flex-shrink: 1; /* Позволяем сжиматься */
+            min-width: 0;   /* (ВАЖНО) Позволяем сжиматься */
+            max-width: 100%;
+        }
+        .message-actions pre {
+            overflow-x: auto;      /* (ВАЖНО) Добавляем прокрутку, если SQL длинный */
+            max-width: 100%;       /* (ВАЖНО) SQL не шире, чем <details> */
+            background-color: #e0e0e0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 8px;
+            box-sizing: border-box; /* Учитываем padding */
+        }
+        .excel-btn {
+            font-size: 12px;
+            padding: 4px 10px;
+            background-color: #1D6F42; /* Excel Green */
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            white-space: nowrap; /* Не переносить "Скачать Excel" */
+            flex-shrink: 0; /* Не сжимать кнопку */
+            margin-left: 10px;
+        }
+        .excel-btn:hover {
+            background-color: #165231;
+        }
+        /* --- Конец стилей Excel --- */
+
+        .form-container { display: flex; }
+        .form-container textarea { flex-grow: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        .form-container button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .form-container button:disabled { background-color: #ccc; }
+        #typing-indicator { display: none; margin-bottom: 10px; color: #777; }
+    </style>
 </head>
 <body>
-   <h2>Мои чаты</h2>
-    <a href="{% url 'new_chat' %}">+ Новый чат</a>
 
-    <ul>
-        {% for session in sessions %}
-            <li>
-                <a href="{% url 'chat_detail' session.id %}">{{ session.title }}</a>
-                <small>{{ session.created_at }}</small>
-            </li>
-        {% empty %}
-            <li>У вас пока нет чатов.</li>
-        {% endfor %}
-    </ul>
+    <!-- ======================= -->
+    <!-- === ЛЕВАЯ ПАНЕЛЬ === -->
+    <!-- ======================= -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="{% url 'new_chat' %}" class="new-chat-btn">+ Новый чат</a>
+        </div>
 
+        <div class="chat-list" id="chat-list-container">
+            {% for s in sessions %}
+                <div id="session-{{ s.id }}">
+                    <a href="{% url 'chat_detail' s.id %}"
+                       class="chat-list-item {% if s.id == session.id %}active{% endif %}">
+
+                        <span class="chat-title" id="title-{{ s.id }}">
+                            {{ s.title }}
+                        </span>
+
+                        <div class="chat-actions">
+                            <button class="rename-btn"
+                                    data-id="{{ s.id }}"
+                                    data-url="{% url 'rename_chat' s.id %}"
+                                    title="Переименовать">✏️</button>
+                            <button class="delete-btn"
+                                    data-id="{{ s.id }}"
+                                    data-url="{% url 'delete_chat' s.id %}"
+                                    title="Удалить">🗑️</button>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="sidebar-footer">
+            <a href="{% url 'logout' %}" class="logout-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 17L21 12M21 12L16 7M21 12L9 12M15 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Выйти
+            </a>
+        </div>
+    </div>
+
+    <!-- ======================= -->
+    <!-- === ПРАВАЯ ПАНЕЛЬ === -->
+    <!-- ======================= -->
+    <div class="main-content">
+
+        {% if not session %}
+            <div class="chat-container">
+                <h2>Добро пожаловать в DasmGPT</h2>
+                <p>Выберите чат слева или создайте новый, чтобы начать.</p>
+            </div>
+        {% else %}
+            <div class="chat-container">
+                <h2 id="chat-title-header">{{ session.title }}</h2>
+
+                <div class="messages" id="message-list">
+                    {% for msg in messages %}
+                        {% include 'chat/components/message_block.html' with message=msg %}
+                    {% endfor %}
+                </div>
+
+                <div id="typing-indicator">DasmGPT печатает...</div>
+
+                <form id="chat-form" class="form-container">
+                    {% csrf_token %}
+                    <textarea id="message-input" name="message" placeholder="Введите сообщение..."></textarea>
+                    <button id="send-button" type="submit">Отправить</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+
+    <!-- ======================= -->
+    <!-- === JAVASCRIPT === -->
+    <!-- ======================= -->
+    <script>
+        const csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrfToken = csrfTokenInput ? csrfTokenInput.value : '';
+
+        // ------------------------------------
+        // --- СКРИПТЫ УПРАВЛЕНИЯ ЧАТАМИ ---
+        // ------------------------------------
+        document.getElementById('chat-list-container').addEventListener('click', function(e) {
+
+            // --- Логика ПЕРЕИМЕНОВАНИЯ ---
+            if (e.target.classList.contains('rename-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const sessionId = e.target.dataset.id;
+                const titleSpan = document.getElementById(`title-${sessionId}`);
+                const currentTitle = titleSpan.innerText;
+                const renameUrl = e.target.dataset.url;
+
+                const newTitle = prompt("Введите новое название чата:", currentTitle);
+
+                if (newTitle && newTitle !== currentTitle) {
+                    fetch(renameUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ new_title: newTitle })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            titleSpan.innerText = data.new_title;
+                            const headerTitle = document.getElementById('chat-title-header');
+                            if (headerTitle && {{ session.id|default:0 }} == sessionId) {
+                                headerTitle.innerText = data.new_title;
+                            }
+                        } else {
+                            alert('Ошибка переименования: ' + data.message);
+                        }
+                    });
+                }
+            }
+
+            // --- Логика УДАЛЕНИЯ ---
+            if (e.target.classList.contains('delete-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const sessionId = e.target.dataset.id;
+                const deleteUrl = e.target.dataset.url;
+
+                if (confirm("Вы уверены, что хотите удалить этот чат?")) {
+                    fetch(deleteUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            document.getElementById(`session-${sessionId}`).remove();
+                            if ({{ session.id|default:0 }} == sessionId) {
+                                window.location.href = data.redirect_url || '/';
+                            }
+                        } else {
+                            alert('Ошибка удаления: ' + data.message);
+                        }
+                    });
+                }
+            }
+        });
+
+        // ------------------------------------
+        // --- СКРИПТЫ ОТПРАВКИ СООБЩЕНИЙ ---
+        // ------------------------------------
+
+        const chatForm = document.getElementById('chat-form');
+
+        if (chatForm) {
+            const messageList = document.getElementById('message-list');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const typingIndicator = document.getElementById('typing-indicator');
+
+            const sessionId = {{ session.id|default:0 }};
+            const sendUrl = "{% url 'send_message' session.id|default:0 %}".replace('0', sessionId);
+            const getUrl = "{% url 'get_new_messages' session.id|default:0 %}".replace('0', sessionId);
+
+            let pollingInterval;
+            let lastMessageId = 0;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                scrollToBottom();
+                const lastMsg = messageList.querySelector('.message:last-child');
+                if (lastMsg) {
+                    lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+                }
+            });
+
+            chatForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const messageText = messageInput.value.trim();
+                if (!messageText) return;
+                setLoadingState(true);
+
+                fetch(sendUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ message: messageText })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'processing') {
+                        addMessageHtml(data.user_message_html);
+                        startPolling();
+                    } else {
+                        setLoadingState(false);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка отправки:', error);
+                    setLoadingState(false);
+                });
+            });
+
+            function setLoadingState(isLoading) {
+                messageInput.disabled = isLoading;
+                sendButton.disabled = isLoading;
+                typingIndicator.style.display = isLoading ? 'block' : 'none';
+                if (isLoading) messageInput.value = '';
+            }
+
+            function startPolling() {
+                if (pollingInterval) return;
+                pollingInterval = setInterval(() => {
+                    fetch(`${getUrl}?last_message_id=${lastMessageId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                stopPolling();
+                                addMessageHtml(data.message_html);
+                                if (data.data_payload && data.data_payload.plotly_json) {
+                                    renderPlotlyChart(data.data_payload.plotly_json);
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Ошибка "опроса":', error);
+                            stopPolling();
+                        });
+                }, 2500);
+            }
+
+            function stopPolling() {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+                setLoadingState(false);
+            }
+
+            function addMessageHtml(html) {
+                messageList.insertAdjacentHTML('beforeend', html);
+                const lastMsg = messageList.querySelector('.message:last-child');
+                if (lastMsg) {
+                    lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+                }
+                scrollToBottom();
+            }
+
+            function renderPlotlyChart(plotlyJson) {
+                try {
+                    const chartData = JSON.parse(plotlyJson);
+                    const chartId = 'chart-' + new Date().getTime();
+                    const chartDiv = document.createElement('div');
+                    chartDiv.id = chartId;
+                    chartDiv.className = 'bot-chart';
+                    messageList.appendChild(chartDiv);
+
+                    Plotly.newPlot(chartId, chartData.data, chartData.layout, {
+                        responsive: true,
+                        displaylogo: false,
+                        modeBarButtonsToRemove: ['sendDataToCloud']
+                    });
+
+                    scrollToBottom();
+                } catch (e) {
+                    console.error("Ошибка рендеринга Plotly:", e);
+                }
+            }
+
+            function scrollToBottom() {
+                messageList.scrollTop = messageList.scrollHeight;
+            }
+        }
+    </script>
 </body>
 </html>

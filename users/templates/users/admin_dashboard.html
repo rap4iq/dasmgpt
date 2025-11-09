@@ -1,48 +1,126 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель DasmGPT</title>
+    <!-- 1. Подключаем Tailwind CSS для "красивого" интерфейса -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Небольшая кастомизация для темной темы по умолчанию */
+        html, body {
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-100 */
+        }
+    </style>
 </head>
-<body>
-    <h2>Админ-панель DasmGPT</h2>
+<body class="antialiased">
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
 
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>Email</th>
-      <th>Имя</th>
-      <th>Роль</th>
-      <th>Активен</th>
-      <th>Дата регистрации</th>
-      <th>Действия</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for user in users %}
-    <tr>
-      <td>{{ user.email }}</td>
-      <td>{{ user.full_name }}</td>
-      <td>{% if user.is_staff %}Admin{% else %}User{% endif %}</td>
-      <td>
-        {% if user.is_active %}
-          ✅ Активен
-        {% else %}
-          ❌ Заблокирован
-        {% endif %}
-      </td>
-      <td>{{ user.date_joined|date:"d.m.Y H:i" }}</td>
-      <td>
-        {% if not user.is_staff %}
-          <a href="{% url 'make_admin' user.id %}" class="btn btn-sm btn-outline-success">Сделать админом</a>
-        {% endif %}
-        <a href="{% url 'toggle_active' user.id %}" class="btn btn-sm btn-outline-danger">
-          {% if user.is_active %}Заблокировать{% else %}Разблокировать{% endif %}
-        </a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+        <!-- === Шапка === -->
+        <header class="mb-6 flex items-center justify-between">
+            <h1 class="text-3xl font-bold text-white">
+                Админ-панель DasmGPT
+            </h1>
+            <a href="{% url 'chat_list' %}" class="text-sm text-blue-400 hover:text-blue-300">
+                ← Вернуться в приложение
+            </a>
+        </header>
+
+        <!-- === Таблица пользователей (ТЗ п. 2.2) === -->
+        <div class="bg-gray-800 shadow-lg rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Email
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Имя
+                            </th>
+                            <!-- (НОВОЕ) Интеграция из ТЗ: Кол-во чатов -->
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Кол-во чатов
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Роль
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Статус
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Дата регистрации
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Управление
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700">
+                        {% for user in users %}
+                        <tr class="hover:bg-gray-700">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                {{ user.email }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ user.full_name }}
+                            </td>
+                            <!-- (НОВОЕ) Данные из 'annotate' -->
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-300">
+                                {{ user.chat_count }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <!-- "Красивые" и понятные роли -->
+                                {% if user.is_staff %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-800 text-blue-100">
+                                        Admin
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-600 text-gray-200">
+                                        User
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <!-- "Красивый" и понятный статус -->
+                                {% if user.is_active %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-800 text-green-100">
+                                        ✅ Активен
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-800 text-red-100">
+                                        ❌ Заблокирован
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                {{ user.date_joined|date:"d.m.Y H:i" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
+
+                                <!-- (НОВОЕ) Интеграция из ТЗ: Просмотр чатов -->
+                                <a href="{% url 'user_chat_list' user.id %}" class="text-blue-400 hover:text-blue-300">
+                                    Посмотреть чаты
+                                </a>
+
+                                {% if not user.is_staff %}
+                                <a href="{% url 'make_admin' user.id %}" class="text-green-400 hover:text-green-300">
+                                    Сделать админом
+                                </a>
+                                {% endif %}
+
+                                <a href="{% url 'toggle_active' user.id %}" class="text-red-400 hover:text-red-300">
+                                    {% if user.is_active %}Заблокировать{% else %}Разблокировать{% endif %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
 </body>
 </html>
