@@ -2,33 +2,37 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>DasmGPT</title>
-
-    <!-- 1. Актуальная версия Plotly.js -->
+    <title>{% if session %}{{ session.title }}{% else %}DasmGPT{% endif %}</title>
+    <!-- 1. Загружаем Plotly.js (Актуальная версия) -->
     <script src="https://cdn.plot.ly/plotly-2.33.0.min.js"></script>
+    <!-- 2. Подключаем Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Стили -->
+    <!-- 3. Стили -->
     <style>
-        /* --- Стили для всей страницы --- */
-        body {
+        /* --- Общие Стили --- */
+        html {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #343541;
+        }
+        body {
             margin: 0;
             display: flex;
             height: 100vh;
-            background-color: #f4f4f4;
-            overflow: hidden; /* (ВАЖНО) Убираем прокрутку у body */
+            overflow: hidden;
         }
 
         /* --- Левая панель (Список чатов) --- */
         .sidebar {
             width: 280px;
+            min-width: 280px;
             background-color: #202123;
             color: white;
             padding: 15px;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 30px); /* 100% высоты минус padding */
-            flex-shrink: 0; /* Не сжимать сайдбар */
+            height: 100vh;
+            box-sizing: border-box;
         }
         .sidebar-header {
             padding-bottom: 15px;
@@ -73,8 +77,9 @@
             flex-grow: 1;
         }
         .chat-list-item .chat-actions {
-            display: none; /* Показываем при наведении */
+            display: none;
             margin-left: 10px;
+            flex-shrink: 0;
         }
         .chat-list-item:hover .chat-actions {
             display: flex;
@@ -85,34 +90,34 @@
             color: #ccc;
             cursor: pointer;
             font-size: 16px;
+            padding: 2px 4px;
         }
         .chat-actions button:hover {
             color: white;
         }
 
         .sidebar-footer {
-            margin-top: auto; /* Прижимаем к низу */
+            margin-top: auto;
             padding-top: 15px;
             border-top: 1px solid #444;
         }
-        .logout-btn {
+        .sidebar-footer a {
             display: flex;
             align-items: center;
-            width: auto; /* Не растягивать */
-            padding: 8px 10px;
+            padding: 10px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #ccc;
+        }
+        .sidebar-footer a:hover {
             background-color: #343541;
             color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 500;
         }
-        .logout-btn:hover {
-            background-color: #444554;
+        .sidebar-footer a svg {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
         }
-        .logout-btn svg {
-            margin-right: 8px;
-        }
-
 
         /* --- Правая панель (Активный чат) --- */
         .main-content {
@@ -120,109 +125,125 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow-x: hidden; /* (ВАЖНО) Обрезаем "вылезание" */
-            min-width: 0;       /* (ВАЖНО) Позволяем flex-элементу сжиматься */
+            background-color: #f7f7f8;
+            overflow-x: hidden;
+            min-width: 0;
         }
 
         .chat-container {
             max-width: 900px;
-            margin: auto;
+            margin: 0 auto;
             padding: 20px;
             width: 100%;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 40px); /* 100% - padding */
+            height: 100vh;
             box-sizing: border-box;
         }
-        .chat-container h2 {
-            margin-top: 0;
+        .chat-header {
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
         }
 
+        /* --- (ИСПРАВЛЕНИЕ CSS) --- */
         .messages {
             flex-grow: 1;
             overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
+            padding: 10px 0;
             margin-bottom: 10px;
-            background-color: white;
-            border-radius: 8px;
             display: flex;
             flex-direction: column;
+            /* gap: 15px; <-- УДАЛЕНО */
         }
-
-        /* --- (ИСПРАВЛЕНО v3) Стили сообщения --- */
         .message {
-            padding: 8px 12px;
+            padding: 12px 16px;
             border-radius: 18px;
-            margin-bottom: 8px;
             word-wrap: break-word;
-            max-width: 100%;      /* Сообщение может занимать 100%... */
-            box-sizing: border-box;
+            line-height: 1.5;
+            margin-bottom: 15px; /* <-- ДОБАВЛЕНО */
         }
+        .message:last-child {
+            margin-bottom: 0; /* <-- ДОБАВЛЕНО */
+        }
+        /* --- (КОНЕЦ ИСПРАВЛЕНИЯ) --- */
+
         .user {
             background-color: #007bff;
             color: white;
             align-self: flex-end;
-            max-width: 70%;       /* ...но .user и .bot ограничиваются */
+            max-width: 75%;
         }
         .bot {
-            background-color: #f1f1f1;
+            background-color: #ffffff;
             color: black;
             align-self: flex-start;
-            max-width: 100%;      /* Бот занимает 100% для кнопок */
+            border: 1px solid #e5e5e5;
+            max-width: 100%;
         }
-        .bot-chart { width: 100%; height: 400px; }
 
-        /* --- (ИСПРАВЛЕНО v3) Стили для кнопок "Excel" / "SQL" --- */
         .message-actions {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             margin-top: 12px;
             padding-top: 8px;
             border-top: 1px solid #e0e0e0;
-            max-width: 100%; /* Ограничиваем ширину */
-            box-sizing: border-box;
+            max-width: 100%;
+            overflow: hidden;
         }
         .message-actions details {
             cursor: pointer;
             font-size: 13px;
             color: #555;
-            flex-shrink: 1; /* Позволяем сжиматься */
-            min-width: 0;   /* (ВАЖНО) Позволяем сжиматься */
-            max-width: 100%;
+            margin-bottom: 8px;
         }
         .message-actions pre {
-            overflow-x: auto;      /* (ВАЖНО) Добавляем прокрутку, если SQL длинный */
-            max-width: 100%;       /* (ВАЖНО) SQL не шире, чем <details> */
-            background-color: #e0e0e0;
+            max-width: 100%;
+            overflow-x: auto;
+            background-color: #f0f0f0;
             padding: 10px;
             border-radius: 5px;
-            margin-top: 8px;
-            box-sizing: border-box; /* Учитываем padding */
+            font-size: 13px;
         }
         .excel-btn {
             font-size: 12px;
             padding: 4px 10px;
-            background-color: #1D6F42; /* Excel Green */
+            background-color: #1D6F42;
             color: white;
             text-decoration: none;
             border-radius: 5px;
             font-weight: 500;
-            white-space: nowrap; /* Не переносить "Скачать Excel" */
-            flex-shrink: 0; /* Не сжимать кнопку */
-            margin-left: 10px;
+            display: inline-block;
+            margin-top: 5px;
         }
-        .excel-btn:hover {
-            background-color: #165231;
-        }
-        /* --- Конец стилей Excel --- */
+        .excel-btn:hover { background-color: #165231; }
 
-        .form-container { display: flex; }
-        .form-container textarea { flex-grow: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
-        .form-container button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .bot-chart {
+            width: 100%;
+            height: 400px;
+            background-color: #ffffff;
+        }
+
+        .form-container {
+            display: flex;
+            flex-shrink: 0;
+            padding-top: 10px;
+        }
+        .form-container textarea {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            resize: none;
+        }
+        .form-container button {
+            padding: 10px 15px;
+            margin-left: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
         .form-container button:disabled { background-color: #ccc; }
-        #typing-indicator { display: none; margin-bottom: 10px; color: #777; }
+        #typing-indicator { display: none; margin-bottom: 10px; color: #777; font-style: italic; }
     </style>
 </head>
 <body>
@@ -239,7 +260,8 @@
             {% for s in sessions %}
                 <div id="session-{{ s.id }}">
                     <a href="{% url 'chat_detail' s.id %}"
-                       class="chat-list-item {% if s.id == session.id %}active{% endif %}">
+                       class="chat-list-item {% if session and s.id == session.id %}active{% endif %}"
+                       data-session-id="{{ s.id }}">
 
                         <span class="chat-title" id="title-{{ s.id }}">
                             {{ s.title }}
@@ -261,9 +283,11 @@
         </div>
 
         <div class="sidebar-footer">
-            <a href="{% url 'logout' %}" class="logout-btn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 17L21 12M21 12L16 7M21 12L9 12M15 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <a href="{% url 'logout' %}">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                  <path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2A.75.75 0 0 0 10.75 3.5h-5.5A.75.75 0 0 0 4.5 4.25v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clip-rule="evenodd" />
+                  <path fill-rule="evenodd" d="M16.72 9.22a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 1 1-1.06-1.06L17.94 12l-1.22-1.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                  <path fill-rule="evenodd" d="M11.75 12a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
                 </svg>
                 Выйти
             </a>
@@ -277,12 +301,20 @@
 
         {% if not session %}
             <div class="chat-container">
-                <h2>Добро пожаловать в DasmGPT</h2>
-                <p>Выберите чат слева или создайте новый, чтобы начать.</p>
+                <div class="chat-header">
+                    <h2 class="text-2xl font-semibold">Добро пожаловать в DasmGPT</h2>
+                </div>
+                <div class="messages" style="align-items: center; justify-content: center;">
+                    <p class="text-gray-600">Выберите чат слева или создайте новый, чтобы начать.</p>
+                </div>
             </div>
+
         {% else %}
+            <!-- Если сессия выбрана, вставляем HTML чата -->
             <div class="chat-container">
-                <h2 id="chat-title-header">{{ session.title }}</h2>
+                <div class="chat-header">
+                    <h2 class="text-2xl font-semibold" id="chat-title-header">{{ session.title }}</h2>
+                </div>
 
                 <div class="messages" id="message-list">
                     {% for msg in messages %}
@@ -306,23 +338,23 @@
     <!-- === JAVASCRIPT === -->
     <!-- ======================= -->
     <script>
-        const csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
-        const csrfToken = csrfTokenInput ? csrfTokenInput.value : '';
+        // --- Получаем CSRF-токен для всех AJAX-запросов ---
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
         // ------------------------------------
         // --- СКРИПТЫ УПРАВЛЕНИЯ ЧАТАМИ ---
         // ------------------------------------
         document.getElementById('chat-list-container').addEventListener('click', function(e) {
 
-            // --- Логика ПЕРЕИМЕНОВАНИЯ ---
-            if (e.target.classList.contains('rename-btn')) {
+            const renameButton = e.target.closest('.rename-btn');
+            if (renameButton) {
                 e.preventDefault();
                 e.stopPropagation();
 
-                const sessionId = e.target.dataset.id;
+                const sessionId = renameButton.dataset.id;
+                const renameUrl = renameButton.dataset.url;
                 const titleSpan = document.getElementById(`title-${sessionId}`);
                 const currentTitle = titleSpan.innerText;
-                const renameUrl = e.target.dataset.url;
 
                 const newTitle = prompt("Введите новое название чата:", currentTitle);
 
@@ -350,13 +382,13 @@
                 }
             }
 
-            // --- Логика УДАЛЕНИЯ ---
-            if (e.target.classList.contains('delete-btn')) {
+            const deleteButton = e.target.closest('.delete-btn');
+            if (deleteButton) {
                 e.preventDefault();
                 e.stopPropagation();
 
-                const sessionId = e.target.dataset.id;
-                const deleteUrl = e.target.dataset.url;
+                const sessionId = deleteButton.dataset.id;
+                const deleteUrl = deleteButton.dataset.url;
 
                 if (confirm("Вы уверены, что хотите удалить этот чат?")) {
                     fetch(deleteUrl, {
@@ -381,33 +413,68 @@
             }
         });
 
-        // ------------------------------------
-        // --- СКРИПТЫ ОТПРАВКИ СООБЩЕНИЙ ---
-        // ------------------------------------
+        // ----------------------------------------------------
+        // --- СКРИПТЫ ОТПРАВКИ СООБЩЕНИЙ И РЕНДЕРИНГА ГРАФИКОВ ---
+        // ----------------------------------------------------
 
-        const chatForm = document.getElementById('chat-form');
-
-        if (chatForm) {
+        // (ВАЖНО) Этот код выполняется, только если мы на странице чата
+        {% if session %}
+        (function() {
             const messageList = document.getElementById('message-list');
             const messageInput = document.getElementById('message-input');
+            const chatForm = document.getElementById('chat-form');
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator');
 
-            const sessionId = {{ session.id|default:0 }};
-            const sendUrl = "{% url 'send_message' session.id|default:0 %}".replace('0', sessionId);
-            const getUrl = "{% url 'get_new_messages' session.id|default:0 %}".replace('0', sessionId);
+            const sendUrl = "{% url 'send_message' session.id %}";
+            const getUrl = "{% url 'get_new_messages' session.id %}";
 
             let pollingInterval;
             let lastMessageId = 0;
 
+            // --- (ИСПРАВЛЕНО) Новая функция рендеринга ---
+            function renderChartsInElement(containerElement) {
+                // Находим все "контейнеры-заполнители" внутри элемента
+                const chartPlaceholders = containerElement.querySelectorAll('.chart-container-placeholder');
+
+                chartPlaceholders.forEach(placeholder => {
+                    const plotlyJson = placeholder.dataset.plotlyJson;
+                    if (plotlyJson) {
+                        try {
+                            const chartData = JSON.parse(plotlyJson);
+                            // Используем ID плейсхолдера, чтобы сделать его уникальным
+                            const chartId = placeholder.id;
+
+                            // РИСУЕМ!
+                            Plotly.newPlot(chartId, chartData.data, chartData.layout, {
+                                responsive: true,
+                                displaylogo: false,
+                                modeBarButtonsToRemove: ['sendDataToCloud']
+                            });
+
+                            // (ВАЖНО) Очищаем data-атрибут, чтобы не рисовать дважды
+                            placeholder.removeAttribute('data-plotly-json');
+
+                        } catch (e) {
+                            console.error("Ошибка рендеринга Plotly:", e, plotlyJson);
+                        }
+                    }
+                });
+            }
+
+            // --- Запускаем при загрузке страницы ---
             document.addEventListener('DOMContentLoaded', () => {
                 scrollToBottom();
                 const lastMsg = messageList.querySelector('.message:last-child');
                 if (lastMsg) {
                     lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
                 }
+
+                // (ИСПРАВЛЕНО) РИСУЕМ СТАРЫЕ ГРАФИКИ
+                renderChartsInElement(messageList);
             });
 
+            // --- Обработчик отправки формы ---
             chatForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 const messageText = messageInput.value.trim();
@@ -416,16 +483,13 @@
 
                 fetch(sendUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
                     body: JSON.stringify({ message: messageText })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'processing') {
-                        addMessageHtml(data.user_message_html);
+                        const newMsgEl = addMessageHtml(data.user_message_html);
                         startPolling();
                     } else {
                         setLoadingState(false);
@@ -452,10 +516,9 @@
                         .then(data => {
                             if (data.status === 'success') {
                                 stopPolling();
-                                addMessageHtml(data.message_html);
-                                if (data.data_payload && data.data_payload.plotly_json) {
-                                    renderPlotlyChart(data.data_payload.plotly_json);
-                                }
+                                // (ИСПРАВЛЕНО) РИСУЕМ НОВЫЙ ГРАФИК
+                                const newMsgEl = addMessageHtml(data.message_html);
+                                renderChartsInElement(newMsgEl);
                             }
                         })
                         .catch(error => {
@@ -472,39 +535,27 @@
             }
 
             function addMessageHtml(html) {
-                messageList.insertAdjacentHTML('beforeend', html);
+                // (ИСПРАВЛЕНО) Создаем div, чтобы вернуть элемент
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const newMsgEl = tempDiv.firstElementChild;
+                messageList.appendChild(newMsgEl);
+
                 const lastMsg = messageList.querySelector('.message:last-child');
                 if (lastMsg) {
                     lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
                 }
                 scrollToBottom();
-            }
-
-            function renderPlotlyChart(plotlyJson) {
-                try {
-                    const chartData = JSON.parse(plotlyJson);
-                    const chartId = 'chart-' + new Date().getTime();
-                    const chartDiv = document.createElement('div');
-                    chartDiv.id = chartId;
-                    chartDiv.className = 'bot-chart';
-                    messageList.appendChild(chartDiv);
-
-                    Plotly.newPlot(chartId, chartData.data, chartData.layout, {
-                        responsive: true,
-                        displaylogo: false,
-                        modeBarButtonsToRemove: ['sendDataToCloud']
-                    });
-
-                    scrollToBottom();
-                } catch (e) {
-                    console.error("Ошибка рендеринга Plotly:", e);
-                }
+                return newMsgEl; // Возвращаем новый элемент
             }
 
             function scrollToBottom() {
                 messageList.scrollTop = messageList.scrollHeight;
             }
-        }
+        })();
+        {% endif %}
+        // ------------------------------------
+
     </script>
 </body>
 </html>

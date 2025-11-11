@@ -100,7 +100,6 @@ def get_new_messages(request, session_id):
     session = get_object_or_404(ChatSession, id=session_id, user=request.user)
 
     # Ищем сообщения от 'ai', которые фронтенд еще не видел
-    # (Это упрощенная логика; лучше передавать 'last_message_id' от фронтенда)
     last_message_id = request.GET.get('last_message_id')
 
     if last_message_id:
@@ -213,17 +212,14 @@ def download_excel(request, message_id):
 
         engine = create_engine(engine_url)
 
-        # 4. Повторно выполняем SQL
         df = pd.read_sql(sql_query, engine)
 
-        # 5. Создаем Excel-файл в памяти
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Data')
 
         output.seek(0)
 
-        # 6. Отдаем файл пользователю
         response = HttpResponse(
             output.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
