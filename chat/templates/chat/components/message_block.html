@@ -1,0 +1,36 @@
+{% comment %}
+Этот data-message-id="{
+    { message.id }}" КРИТИЧЕСКИ ВАЖЕН.
+{% endcomment %}
+<div class="message {% if message.role == 'user' %}user{% else %}bot{% endif %}" data-message-id="{{ message.id }}">
+
+    <strong>{{ message.role|title }}:</strong>
+
+    <!-- Используем linebreaksbr, чтобы \n из Markdown-таблиц превращались в <br> -->
+    <div class="content">{{ message.content|safe|linebreaksbr }}</div>
+
+    {% if message.role == 'ai' and message.data_payload.sql_query %}
+        <div class="message-actions">
+            <details>
+                <summary>Показать SQL-запрос</summary>
+                <pre><code>{{ message.data_payload.sql_query }}</code></pre>
+            </details>
+
+            <a href="{% url 'download_excel' message.id %}" class="excel-btn" target="_blank">
+                Скачать Excel
+            </a>
+        </div>
+    {% endif %}
+
+    {% comment %}
+    (ИСПРАВЛЕНО) Это "контейнер-заполнитель" для графика.
+    JS найдет его по 'data-plotly-json' и ID, и нарисует в нем график.
+    {% endcomment %}
+    {% if message.role == 'ai' and message.data_payload.plotly_json %}
+        <div class="bot-chart chart-container-placeholder"
+             id="chart-{{ message.id }}"
+             data-plotly-json="{{ message.data_payload.plotly_json }}">
+             <!-- Сюда будет вставлен график -->
+        </div>
+    {% endif %}
+</div>

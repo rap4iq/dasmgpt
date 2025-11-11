@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Чаты пользователя {{ target_user.email }}</title>
+    <style>
+        /* --- Стили для всей страницы --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+
+        /* --- Левая панель (Список чатов) --- */
+        .sidebar {
+            width: 280px;
+            background-color: #202123;
+            color: white;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding-bottom: 15px;
+            border-bottom: 1px solid #444;
+        }
+        .sidebar-header a.new-chat-btn {
+            display: block;
+            padding: 10px;
+            background-color: #343541;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .sidebar-header a.new-chat-btn:hover {
+            background-color: #444554;
+        }
+
+        .chat-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .chat-list-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            justify-content: space-between;
+        }
+        .chat-list-item:hover, .chat-list-item.active {
+            background-color: #343541;
+        }
+        .chat-list-item .chat-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1;
+        }
+        .chat-list-item .chat-actions {
+            display: none; /* Показываем при наведении */
+            margin-left: 10px;
+        }
+        .chat-list-item:hover .chat-actions {
+            display: flex;
+        }
+        .chat-actions button {
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .chat-actions button:hover {
+            color: white;
+        }
+
+        /* --- Правая панель (Активный чат) --- */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Встраиваем стили из chat_detail, чтобы все было в одном месте */
+        .chat-container {
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: calc(100% - 40px); /* 100% - padding */
+        }
+        .messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: white;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        .message { padding: 8px 12px; border-radius: 18px; margin-bottom: 8px; max-width: 70%; word-wrap: break-word; }
+        .user { background-color: #007bff; color: white; align-self: flex-end; }
+        .bot { background-color: #f1f1f1; color: black; align-self: flex-start; }
+        .bot pre { background-color: #e0e0e0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .bot-chart { width: 100%; height: 400px; }
+        .form-container { display: flex; }
+        .form-container textarea { flex-grow: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        .form-container button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .form-container button:disabled { background-color: #ccc; }
+        #typing-indicator { display: none; margin-bottom: 10px; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h4>Чаты: {{ target_user.email }}</h4>
+            <a href="{% url 'admin_dashboard' %}">← Назад в дашборд</a>
+        </div>
+
+        <div class="chat-list">
+            {% for s in sessions %}
+                <a href="{% url 'admin_user_chat_detail' target_user.id s.id %}"
+                   class="chat-list-item {% if s.id == session.id %}active{% endif %}">
+                    <span>{{ s.title }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="chat-container">
+            {% if session %}
+                <h2>{{ session.title }}</h2>
+                <div class="messages">
+                    {% for msg in messages %}
+                        {% include 'chat/components/message_block.html' with message=msg %}
+                    {% endfor %}
+                </div>
+                <div style="padding: 10px; background: #eee; text-align: center; border-radius: 8px;">
+                    Режим "Только чтение" (Просмотр от имени администратора)
+                </div>
+            {% else %}
+                <h2>Чаты пользователя {{ target_user.email }}</h2>
+                <p>Выберите чат слева для просмотра.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
