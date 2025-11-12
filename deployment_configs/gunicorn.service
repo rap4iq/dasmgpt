@@ -1,0 +1,21 @@
+# /etc/systemd/system/gunicorn.service
+#
+# Этот файл говорит Ubuntu, как запускать ваш Django-сайт 24/7
+
+[Unit]
+Description=Gunicorn daemon for DasmGPT
+After=network.target
+
+[Service]
+# (ВАЖНО) Замените 'ubuntu' на вашего пользователя, если он другой
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/DasmGPT
+ExecStart=/home/ubuntu/DasmGPT/venv/bin/gunicorn \
+          --access-logfile - \
+          --workers 3 \
+          --bind unix:/run/gunicorn.sock \
+          dasm.wsgi:application
+
+[Install]
+WantedBy=multi-user.target

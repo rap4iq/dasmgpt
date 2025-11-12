@@ -1,0 +1,23 @@
+# /etc/systemd/system/celery.service
+#
+# Этот файл говорит Ubuntu, как запускать вашего "ИИ-воркера" 24/7
+
+[Unit]
+Description=Celery Worker for DasmGPT
+After=network.target
+
+[Service]
+# (ВАЖНО) Замените 'ubuntu' на вашего пользователя
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/DasmGPT
+# (ВАЖНО) Укажите путь к 'celery' внутри вашего venv
+ExecStart=/home/ubuntu/DasmGPT/venv/bin/celery \
+          -A dasm worker \
+          -l info \
+          -P solo  # (Оставляем '-P solo', т.к. ИИ-задачи тяжелые и блокирующие)
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

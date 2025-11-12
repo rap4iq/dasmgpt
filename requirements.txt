@@ -1,0 +1,23 @@
+--- Django и База ---
+
+django
+django-decouple
+psycopg2-binary
+SQLAlchemy
+
+--- Celery и Redis ---
+
+celery
+redis
+
+--- ИИ и Данные ---
+
+ollama
+pandas
+plotly
+openpyxl
+sqlparse  # (Для ai_core.security)
+
+--- Сервер "Продакшена" ---
+
+gunicorn
