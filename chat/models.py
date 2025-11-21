@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.db import models
+import uuid
 
 class ChatSession(models.Model):
+    public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

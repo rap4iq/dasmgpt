@@ -153,17 +153,16 @@
             margin-bottom: 10px;
             display: flex;
             flex-direction: column;
-            /* gap: 15px; <-- УДАЛЕНО */
         }
         .message {
             padding: 12px 16px;
             border-radius: 18px;
             word-wrap: break-word;
             line-height: 1.5;
-            margin-bottom: 15px; /* <-- ДОБАВЛЕНО */
+            margin-bottom: 15px;
         }
         .message:last-child {
-            margin-bottom: 0; /* <-- ДОБАВЛЕНО */
+            margin-bottom: 0;
         }
         /* --- (КОНЕЦ ИСПРАВЛЕНИЯ) --- */
 
@@ -258,23 +257,25 @@
 
         <div class="chat-list" id="chat-list-container">
             {% for s in sessions %}
-                <div id="session-{{ s.id }}">
-                    <a href="{% url 'chat_detail' s.id %}"
-                       class="chat-list-item {% if session and s.id == session.id %}active{% endif %}"
-                       data-session-id="{{ s.id }}">
+                <!-- (ИСПРАВЛЕНО) Используем public_id вместо id -->
+                <div id="session-{{ s.public_id }}">
+                    <a href="{% url 'chat_detail' s.public_id %}"
+                       class="chat-list-item {% if session and s.public_id == session.public_id %}active{% endif %}"
+                       data-session-id="{{ s.public_id }}">
 
-                        <span class="chat-title" id="title-{{ s.id }}">
+                        <span class="chat-title" id="title-{{ s.public_id }}">
                             {{ s.title }}
                         </span>
 
                         <div class="chat-actions">
+                            <!-- (ИСПРАВЛЕНО) URL-адреса теперь строятся через public_id -->
                             <button class="rename-btn"
-                                    data-id="{{ s.id }}"
-                                    data-url="{% url 'rename_chat' s.id %}"
+                                    data-id="{{ s.public_id }}"
+                                    data-url="{% url 'rename_chat' s.public_id %}"
                                     title="Переименовать">✏️</button>
                             <button class="delete-btn"
-                                    data-id="{{ s.id }}"
-                                    data-url="{% url 'delete_chat' s.id %}"
+                                    data-id="{{ s.public_id }}"
+                                    data-url="{% url 'delete_chat' s.public_id %}"
                                     title="Удалить">🗑️</button>
                         </div>
                     </a>
@@ -338,7 +339,6 @@
     <!-- === JAVASCRIPT === -->
     <!-- ======================= -->
     <script>
-        // --- Получаем CSRF-токен для всех AJAX-запросов ---
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
         // ------------------------------------
@@ -372,7 +372,8 @@
                         if (data.status === 'success') {
                             titleSpan.innerText = data.new_title;
                             const headerTitle = document.getElementById('chat-title-header');
-                            if (headerTitle && {{ session.id|default:0 }} == sessionId) {
+                            // (ИСПРАВЛЕНО) Сравнение public_id
+                            if (headerTitle && "{{ session.public_id|default:'' }}" === sessionId) {
                                 headerTitle.innerText = data.new_title;
                             }
                         } else {
@@ -402,7 +403,8 @@
                     .then(data => {
                         if (data.status === 'success') {
                             document.getElementById(`session-${sessionId}`).remove();
-                            if ({{ session.id|default:0 }} == sessionId) {
+                            // (ИСПРАВЛЕНО) Сравнение public_id
+                            if ("{{ session.public_id|default:'' }}" === sessionId) {
                                 window.location.href = data.redirect_url || '/';
                             }
                         } else {
@@ -417,7 +419,6 @@
         // --- СКРИПТЫ ОТПРАВКИ СООБЩЕНИЙ И РЕНДЕРИНГА ГРАФИКОВ ---
         // ----------------------------------------------------
 
-        // (ВАЖНО) Этот код выполняется, только если мы на странице чата
         {% if session %}
         (function() {
             const messageList = document.getElementById('message-list');
@@ -426,35 +427,28 @@
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator');
 
-            const sendUrl = "{% url 'send_message' session.id %}";
-            const getUrl = "{% url 'get_new_messages' session.id %}";
+            // (ИСПРАВЛЕНО) Использование public_id в URL
+            const sendUrl = "{% url 'send_message' session.public_id %}";
+            const getUrl = "{% url 'get_new_messages' session.public_id %}";
 
             let pollingInterval;
             let lastMessageId = 0;
 
-            // --- (ИСПРАВЛЕНО) Новая функция рендеринга ---
+            // Функция рендеринга графиков
             function renderChartsInElement(containerElement) {
-                // Находим все "контейнеры-заполнители" внутри элемента
                 const chartPlaceholders = containerElement.querySelectorAll('.chart-container-placeholder');
-
                 chartPlaceholders.forEach(placeholder => {
                     const plotlyJson = placeholder.dataset.plotlyJson;
                     if (plotlyJson) {
                         try {
                             const chartData = JSON.parse(plotlyJson);
-                            // Используем ID плейсхолдера, чтобы сделать его уникальным
                             const chartId = placeholder.id;
-
-                            // РИСУЕМ!
                             Plotly.newPlot(chartId, chartData.data, chartData.layout, {
                                 responsive: true,
                                 displaylogo: false,
                                 modeBarButtonsToRemove: ['sendDataToCloud']
                             });
-
-                            // (ВАЖНО) Очищаем data-атрибут, чтобы не рисовать дважды
                             placeholder.removeAttribute('data-plotly-json');
-
                         } catch (e) {
                             console.error("Ошибка рендеринга Plotly:", e, plotlyJson);
                         }
@@ -462,19 +456,15 @@
                 });
             }
 
-            // --- Запускаем при загрузке страницы ---
             document.addEventListener('DOMContentLoaded', () => {
                 scrollToBottom();
                 const lastMsg = messageList.querySelector('.message:last-child');
                 if (lastMsg) {
                     lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
                 }
-
-                // (ИСПРАВЛЕНО) РИСУЕМ СТАРЫЕ ГРАФИКИ
                 renderChartsInElement(messageList);
             });
 
-            // --- Обработчик отправки формы ---
             chatForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 const messageText = messageInput.value.trim();
@@ -516,7 +506,6 @@
                         .then(data => {
                             if (data.status === 'success') {
                                 stopPolling();
-                                // (ИСПРАВЛЕНО) РИСУЕМ НОВЫЙ ГРАФИК
                                 const newMsgEl = addMessageHtml(data.message_html);
                                 renderChartsInElement(newMsgEl);
                             }
@@ -535,7 +524,6 @@
             }
 
             function addMessageHtml(html) {
-                // (ИСПРАВЛЕНО) Создаем div, чтобы вернуть элемент
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
                 const newMsgEl = tempDiv.firstElementChild;
@@ -546,7 +534,7 @@
                     lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
                 }
                 scrollToBottom();
-                return newMsgEl; // Возвращаем новый элемент
+                return newMsgEl;
             }
 
             function scrollToBottom() {

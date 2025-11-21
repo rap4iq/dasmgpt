@@ -1,5 +1,6 @@
 from django.db import models
 from encrypted_fields.fields import EncryptedTextField
+from pgvector.django import VectorField
 
 
 class DataSource(models.Model):
@@ -34,10 +35,16 @@ class DataSource(models.Model):
 class SchemaTable(models.Model):
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name="tables")
     table_name = models.CharField(max_length=255)
+
     description_ru = models.TextField(
         "Бизнес-описание (для ИИ)", blank=True, null=True,
         help_text="Напр.: 'Фактические расходы на ТВ, Радио, OOH...'"
     )
+
+    # (НОВОЕ ПОЛЕ) Векторное представление описания
+    # nomic-embed-text выдает векторы размером 768
+    embedding = VectorField(dimensions=768, null=True, blank=True)
+
     is_enabled = models.BooleanField(default=True, help_text="Включить эту таблицу для ИИ?")
 
     def __str__(self):
@@ -53,13 +60,18 @@ class SchemaColumn(models.Model):
     schema_table = models.ForeignKey(SchemaTable, on_delete=models.CASCADE, related_name="columns")
     column_name = models.CharField(max_length=255)
     data_type = models.CharField(max_length=100, editable=False)
-    is_metric = models.BooleanField("Метрика?", default=False, help_text="Это Метрика (число, напр. SUM, COUNT)?")
-    is_dimension = models.BooleanField("Измерение?", default=False,
-                                       help_text="Это Измерение (категория, напр. GROUP BY)?")
+
+    is_metric = models.BooleanField("Метрика?", default=False, help_text="Это Метрика?")
+    is_dimension = models.BooleanField("Измерение?", default=False, help_text="Это Измерение?")
+
     description_ru = models.TextField(
         "Бизнес-описание (для ИИ)", blank=True, null=True,
         help_text="Напр.: 'Фактические расходы в USD', 'Город (Астана, Алматы)'"
     )
+
+    # (НОВОЕ ПОЛЕ)
+    embedding = VectorField(dimensions=768, null=True, blank=True)
+
     is_enabled = models.BooleanField(default=True, help_text="Включить эту колонку для ИИ?")
 
     def __str__(self):
