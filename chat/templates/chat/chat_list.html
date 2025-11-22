@@ -2,548 +2,405 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if session %}{{ session.title }}{% else %}DasmGPT{% endif %}</title>
-    <!-- 1. Загружаем Plotly.js (Актуальная версия) -->
+
+    <!-- 1. Библиотеки -->
     <script src="https://cdn.plot.ly/plotly-2.33.0.min.js"></script>
-    <!-- 2. Подключаем Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <!-- 3. Стили -->
+    <!-- 2. Шрифт Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
     <style>
-        /* --- Общие Стили --- */
-        html {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #343541;
-        }
         body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb; /* Светлый фон */
             margin: 0;
-            display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* --- Левая панель (Список чатов) --- */
-        .sidebar {
-            width: 280px;
-            min-width: 280px;
-            background-color: #202123;
-            color: white;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            box-sizing: border-box;
-        }
-        .sidebar-header {
-            padding-bottom: 15px;
-            border-bottom: 1px solid #444;
-        }
-        .sidebar-header a.new-chat-btn {
-            display: block;
-            padding: 10px;
-            background-color: #343541;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .sidebar-header a.new-chat-btn:hover {
-            background-color: #444554;
-        }
+        /* Анимации */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
-        .chat-list {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-top: 15px;
-        }
-        .chat-list-item {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            color: white;
-            justify-content: space-between;
-        }
-        .chat-list-item:hover, .chat-list-item.active {
-            background-color: #343541;
-        }
-        .chat-list-item .chat-title {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex-grow: 1;
-        }
-        .chat-list-item .chat-actions {
-            display: none;
-            margin-left: 10px;
-            flex-shrink: 0;
-        }
-        .chat-list-item:hover .chat-actions {
-            display: flex;
-        }
-        .chat-actions button {
-            background: none;
-            border: none;
-            color: #ccc;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 2px 4px;
-        }
-        .chat-actions button:hover {
-            color: white;
-        }
+        /* Скроллбар */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
 
-        .sidebar-footer {
-            margin-top: auto;
-            padding-top: 15px;
-            border-top: 1px solid #444;
-        }
-        .sidebar-footer a {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #ccc;
-        }
-        .sidebar-footer a:hover {
-            background-color: #343541;
-            color: white;
-        }
-        .sidebar-footer a svg {
-            width: 18px;
-            height: 18px;
-            margin-right: 10px;
-        }
+        /* Markdown стили (Prose) */
+        .prose p { margin-bottom: 0.75em; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
+        .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
+        .prose strong { font-weight: 600; color: #111827; }
+        .prose code { background-color: #f3f4f6; padding: 0.2em 0.4em; border-radius: 0.25em; font-size: 0.875em; font-family: monospace; }
+        .prose pre { background-color: #1f2937; color: #f9fafb; padding: 1em; border-radius: 0.5em; overflow-x: auto; margin-top: 0.5em; }
 
-        /* --- Правая панель (Активный чат) --- */
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background-color: #f7f7f8;
-            overflow-x: hidden;
-            min-width: 0;
-        }
+        /* Таблицы (Светлая тема) */
+        .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; background: white; border: 1px solid #e5e7eb; }
+        .prose thead { background-color: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+        .prose th { text-align: left; padding: 0.75rem 1rem; font-weight: 600; border: 1px solid #e5e7eb; color: #374151; }
+        .prose td { padding: 0.75rem 1rem; border: 1px solid #e5e7eb; color: #4b5563; }
+        .prose tr:hover { background-color: #f8fafc; }
 
-        .chat-container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            box-sizing: border-box;
-        }
-        .chat-header {
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        /* --- (ИСПРАВЛЕНИЕ CSS) --- */
-        .messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 10px 0;
-            margin-bottom: 10px;
-            display: flex;
-            flex-direction: column;
-        }
-        .message {
-            padding: 12px 16px;
-            border-radius: 18px;
-            word-wrap: break-word;
-            line-height: 1.5;
-            margin-bottom: 15px;
-        }
-        .message:last-child {
-            margin-bottom: 0;
-        }
-        /* --- (КОНЕЦ ИСПРАВЛЕНИЯ) --- */
-
-        .user {
-            background-color: #007bff;
-            color: white;
-            align-self: flex-end;
-            max-width: 75%;
-        }
-        .bot {
-            background-color: #ffffff;
-            color: black;
-            align-self: flex-start;
-            border: 1px solid #e5e5e5;
-            max-width: 100%;
-        }
-
-        .message-actions {
-            margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid #e0e0e0;
-            max-width: 100%;
-            overflow: hidden;
-        }
-        .message-actions details {
-            cursor: pointer;
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 8px;
-        }
-        .message-actions pre {
-            max-width: 100%;
-            overflow-x: auto;
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 13px;
-        }
-        .excel-btn {
-            font-size: 12px;
-            padding: 4px 10px;
-            background-color: #1D6F42;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: 500;
-            display: inline-block;
-            margin-top: 5px;
-        }
-        .excel-btn:hover { background-color: #165231; }
-
+        /* График */
         .bot-chart {
             width: 100%;
             height: 400px;
-            background-color: #ffffff;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            margin-top: 1rem;
+            overflow: hidden;
         }
 
-        .form-container {
+        /* Стили кнопок действий (SQL/Excel) */
+        .message-actions {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #e5e7eb;
             display: flex;
-            flex-shrink: 0;
-            padding-top: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
         }
-        .form-container textarea {
-            flex-grow: 1;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #ccc;
-            resize: none;
+        .excel-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            padding: 4px 10px;
+            background-color: #ecfdf5; /* green-50 */
+            color: #059669; /* green-600 */
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            border: 1px solid #a7f3d0;
+            transition: all 0.2s;
         }
-        .form-container button {
-            padding: 10px 15px;
-            margin-left: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        .form-container button:disabled { background-color: #ccc; }
-        #typing-indicator { display: none; margin-bottom: 10px; color: #777; font-style: italic; }
+        .excel-btn:hover { background-color: #d1fae5; }
     </style>
 </head>
-<body>
+<body class="flex h-screen bg-gray-50 text-gray-900">
 
     <!-- ======================= -->
-    <!-- === ЛЕВАЯ ПАНЕЛЬ === -->
+    <!-- === САЙДБАР (Светлый) === -->
     <!-- ======================= -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <a href="{% url 'new_chat' %}" class="new-chat-btn">+ Новый чат</a>
+    <aside class="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transition-all duration-300 z-20">
+
+        <!-- Шапка -->
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="font-semibold text-lg tracking-tight text-gray-900 flex items-center gap-2">
+                <!-- Логотип (Sparkles) -->
+                <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
+                DasmGPT
+            </h2>
         </div>
 
-        <div class="chat-list" id="chat-list-container">
-            {% for s in sessions %}
-                <!-- (ИСПРАВЛЕНО) Используем public_id вместо id -->
-                <div id="session-{{ s.public_id }}">
-                    <a href="{% url 'chat_detail' s.public_id %}"
-                       class="chat-list-item {% if session and s.public_id == session.public_id %}active{% endif %}"
-                       data-session-id="{{ s.public_id }}">
-
-                        <span class="chat-title" id="title-{{ s.public_id }}">
-                            {{ s.title }}
-                        </span>
-
-                        <div class="chat-actions">
-                            <!-- (ИСПРАВЛЕНО) URL-адреса теперь строятся через public_id -->
-                            <button class="rename-btn"
-                                    data-id="{{ s.public_id }}"
-                                    data-url="{% url 'rename_chat' s.public_id %}"
-                                    title="Переименовать">✏️</button>
-                            <button class="delete-btn"
-                                    data-id="{{ s.public_id }}"
-                                    data-url="{% url 'delete_chat' s.public_id %}"
-                                    title="Удалить">🗑️</button>
-                        </div>
-                    </a>
+        <!-- Кнопка "Новый чат" -->
+        <div class="p-3">
+            <a href="{% url 'new_chat' %}" class="flex items-center justify-start gap-3 w-full px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl shadow-sm transition-all hover:shadow-md group">
+                <div class="bg-blue-50 p-1.5 rounded-lg group-hover:bg-blue-100 transition-colors">
+                    <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                 </div>
+                <span class="font-medium">Новый чат</span>
+            </a>
+        </div>
+
+        <!-- Список чатов -->
+        <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scroll" id="chat-list-container">
+            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2 mt-2">История</div>
+
+            {% for s in sessions %}
+            <!-- Используем public_id (UUID) -->
+            <div id="session-{{ s.public_id }}" class="group relative">
+                <a href="{% url 'chat_detail' s.public_id %}"
+                   class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 {% if session and s.public_id == session.public_id %}bg-blue-50 text-blue-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+
+                    <svg class="w-4 h-4 {% if session and s.public_id == session.public_id %}text-blue-500{% else %}text-gray-400{% endif %}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+
+                    <span class="truncate text-sm flex-1" id="title-{{ s.public_id }}">{{ s.title }}</span>
+
+                    <!-- Действия (Rename/Delete) -->
+                    <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 bg-gradient-to-l from-white/90 to-transparent pl-2">
+                        <button class="rename-btn p-1.5 hover:bg-gray-200 rounded-md text-gray-500 hover:text-gray-700"
+                                data-id="{{ s.public_id }}"
+                                data-url="{% url 'rename_chat' s.public_id %}" title="Переименовать">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                        </button>
+                        <button class="delete-btn p-1.5 hover:bg-red-100 rounded-md text-gray-500 hover:text-red-600 ml-1"
+                                data-id="{{ s.public_id }}"
+                                data-url="{% url 'delete_chat' s.public_id %}" title="Удалить">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                </a>
+            </div>
             {% endfor %}
         </div>
 
-        <div class="sidebar-footer">
-            <a href="{% url 'logout' %}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                  <path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2A.75.75 0 0 0 10.75 3.5h-5.5A.75.75 0 0 0 4.5 4.25v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clip-rule="evenodd" />
-                  <path fill-rule="evenodd" d="M16.72 9.22a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 1 1-1.06-1.06L17.94 12l-1.22-1.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-                  <path fill-rule="evenodd" d="M11.75 12a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
-                </svg>
-                Выйти
+        <!-- Футер -->
+        <div class="p-3 border-t border-gray-100">
+            <a href="{% url 'logout' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span class="text-sm font-medium">Выйти</span>
             </a>
         </div>
-    </div>
+    </aside>
+
 
     <!-- ======================= -->
-    <!-- === ПРАВАЯ ПАНЕЛЬ === -->
+    <!-- === ОСНОВНАЯ ОБЛАСТЬ === -->
     <!-- ======================= -->
-    <div class="main-content">
+    <main class="flex-1 flex flex-col h-screen bg-white relative overflow-hidden min-w-0">
 
         {% if not session %}
-            <div class="chat-container">
-                <div class="chat-header">
-                    <h2 class="text-2xl font-semibold">Добро пожаловать в DasmGPT</h2>
+            <!-- ЭКРАН ПРИВЕТСТВИЯ -->
+            <div class="flex-1 flex flex-col items-center justify-center p-4 animate-fade-in">
+                <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm animate-bounce duration-[3000ms]">
+                    <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
                 </div>
-                <div class="messages" style="align-items: center; justify-content: center;">
-                    <p class="text-gray-600">Выберите чат слева или создайте новый, чтобы начать.</p>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Добро пожаловать, {{ user.full_name|default:user.email }}</h1>
+                <p class="text-gray-500 mb-10">Задайте любой вопрос о данных Dasm Group</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group">
+                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-blue-700">Анализ ТВ</span>
+                        <span class="block text-xs text-gray-500">Покажи расходы за октябрь</span>
+                    </button>
+                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all group">
+                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-purple-700">Наружная реклама</span>
+                        <span class="block text-xs text-gray-500">Где самые дорогие билборды?</span>
+                    </button>
                 </div>
             </div>
 
         {% else %}
-            <!-- Если сессия выбрана, вставляем HTML чата -->
-            <div class="chat-container">
-                <div class="chat-header">
-                    <h2 class="text-2xl font-semibold" id="chat-title-header">{{ session.title }}</h2>
+            <!-- ЧАТ -->
+            <div class="h-16 border-b border-gray-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+                <h2 class="font-semibold text-gray-800 truncate" id="chat-title-header">{{ session.title }}</h2>
+                <div class="text-xs text-gray-400">{{ session.created_at|date:"d.m.Y" }}</div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scroll" id="message-list">
+                {% for msg in messages %}
+                    {% include 'chat/components/message_block.html' with message=msg %}
+                {% endfor %}
+
+                <div id="typing-indicator" class="hidden flex items-center gap-2 text-gray-400 text-sm ml-4 animate-pulse">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
+                    DasmGPT думает...
                 </div>
+            </div>
 
-                <div class="messages" id="message-list">
-                    {% for msg in messages %}
-                        {% include 'chat/components/message_block.html' with message=msg %}
-                    {% endfor %}
-                </div>
-
-                <div id="typing-indicator">DasmGPT печатает...</div>
-
-                <form id="chat-form" class="form-container">
+            <div class="p-4 md:p-6 bg-white border-t border-gray-100">
+                <form id="chat-form" class="max-w-3xl mx-auto relative flex items-end shadow-lg rounded-2xl border border-gray-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
                     {% csrf_token %}
-                    <textarea id="message-input" name="message" placeholder="Введите сообщение..."></textarea>
-                    <button id="send-button" type="submit">Отправить</button>
+                    <textarea
+                        id="message-input"
+                        name="message"
+                        placeholder="Введите сообщение..."
+                        class="w-full max-h-40 py-4 pl-5 pr-14 bg-transparent border-none focus:ring-0 resize-none text-gray-700 placeholder-gray-400 leading-relaxed"
+                        rows="1"
+                        oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
+                    ></textarea>
+
+                    <!-- Кнопка Отправить -->
+                    <button id="send-button" type="submit" class="absolute right-2 bottom-2 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-transform active:scale-95 disabled:opacity-50">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+
+                    <!-- Кнопка Стоп (Красная) -->
+                    <button id="stop-button" type="button" class="hidden absolute right-2 bottom-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-transform active:scale-95">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                    </button>
                 </form>
             </div>
         {% endif %}
-    </div>
 
+    </main>
 
-    <!-- ======================= -->
-    <!-- === JAVASCRIPT === -->
-    <!-- ======================= -->
+    <!-- JS ЛОГИКА -->
     <script>
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
 
-        // ------------------------------------
-        // --- СКРИПТЫ УПРАВЛЕНИЯ ЧАТАМИ ---
-        // ------------------------------------
+        // === Markdown Render ===
+        function renderMarkdown() {
+            document.querySelectorAll('.markdown-content').forEach(el => {
+                if (!el.dataset.rendered) {
+                    el.innerHTML = marked.parse(el.textContent);
+                    el.dataset.rendered = "true";
+                    el.classList.add('prose');
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', renderMarkdown);
+
+        // === Логика Сайдбара ===
         document.getElementById('chat-list-container').addEventListener('click', function(e) {
-
-            const renameButton = e.target.closest('.rename-btn');
-            if (renameButton) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const sessionId = renameButton.dataset.id;
-                const renameUrl = renameButton.dataset.url;
-                const titleSpan = document.getElementById(`title-${sessionId}`);
-                const currentTitle = titleSpan.innerText;
-
-                const newTitle = prompt("Введите новое название чата:", currentTitle);
-
-                if (newTitle && newTitle !== currentTitle) {
-                    fetch(renameUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({ new_title: newTitle })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            titleSpan.innerText = data.new_title;
-                            const headerTitle = document.getElementById('chat-title-header');
-                            // (ИСПРАВЛЕНО) Сравнение public_id
-                            if (headerTitle && "{{ session.public_id|default:'' }}" === sessionId) {
-                                headerTitle.innerText = data.new_title;
-                            }
-                        } else {
-                            alert('Ошибка переименования: ' + data.message);
+            const renameBtn = e.target.closest('.rename-btn');
+            if (renameBtn) {
+                e.preventDefault(); e.stopPropagation();
+                const url = renameBtn.dataset.url;
+                const sessionId = renameBtn.dataset.id;
+                const newTitle = prompt("Новое название:");
+                if (newTitle) {
+                    fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({new_title:newTitle})})
+                    .then(r=>r.json()).then(d=>{
+                        if(d.status==='success') {
+                            document.getElementById(`title-${sessionId}`).innerText = d.new_title;
+                            const h = document.getElementById('chat-title-header');
+                            if(h && "{{ session.public_id|default:'' }}" === sessionId) h.innerText = d.new_title;
                         }
                     });
                 }
             }
-
-            const deleteButton = e.target.closest('.delete-btn');
-            if (deleteButton) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const sessionId = deleteButton.dataset.id;
-                const deleteUrl = deleteButton.dataset.url;
-
-                if (confirm("Вы уверены, что хотите удалить этот чат?")) {
-                    fetch(deleteUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            document.getElementById(`session-${sessionId}`).remove();
-                            // (ИСПРАВЛЕНО) Сравнение public_id
-                            if ("{{ session.public_id|default:'' }}" === sessionId) {
-                                window.location.href = data.redirect_url || '/';
-                            }
-                        } else {
-                            alert('Ошибка удаления: ' + data.message);
-                        }
-                    });
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                e.preventDefault(); e.stopPropagation();
+                if(confirm("Удалить чат?")) {
+                    const id = deleteBtn.dataset.id;
+                    fetch(deleteBtn.dataset.url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}})
+                    .then(r=>r.json()).then(d=>{ if(d.status==='success') { document.getElementById(`session-${id}`).remove(); if("{{ session.public_id|default:'' }}" === id) window.location.href='/'; }});
                 }
             }
         });
 
-        // ----------------------------------------------------
-        // --- СКРИПТЫ ОТПРАВКИ СООБЩЕНИЙ И РЕНДЕРИНГА ГРАФИКОВ ---
-        // ----------------------------------------------------
-
+        // === Логика Чата ===
         {% if session %}
         (function() {
             const messageList = document.getElementById('message-list');
             const messageInput = document.getElementById('message-input');
             const chatForm = document.getElementById('chat-form');
             const sendButton = document.getElementById('send-button');
+            const stopButton = document.getElementById('stop-button');
             const typingIndicator = document.getElementById('typing-indicator');
-
-            // (ИСПРАВЛЕНО) Использование public_id в URL
             const sendUrl = "{% url 'send_message' session.public_id %}";
             const getUrl = "{% url 'get_new_messages' session.public_id %}";
+            const cancelUrl = "{% url 'cancel_generation' session.public_id %}";
 
-            let pollingInterval;
             let lastMessageId = 0;
+            let pollingInterval;
 
-            // Функция рендеринга графиков
-            function renderChartsInElement(containerElement) {
-                const chartPlaceholders = containerElement.querySelectorAll('.chart-container-placeholder');
-                chartPlaceholders.forEach(placeholder => {
-                    const plotlyJson = placeholder.dataset.plotlyJson;
-                    if (plotlyJson) {
+            function renderCharts(container) {
+                container.querySelectorAll('.chart-container-placeholder').forEach(el => {
+                    if (el.dataset.plotlyJson) {
                         try {
-                            const chartData = JSON.parse(plotlyJson);
-                            const chartId = placeholder.id;
-                            Plotly.newPlot(chartId, chartData.data, chartData.layout, {
-                                responsive: true,
-                                displaylogo: false,
-                                modeBarButtonsToRemove: ['sendDataToCloud']
-                            });
-                            placeholder.removeAttribute('data-plotly-json');
-                        } catch (e) {
-                            console.error("Ошибка рендеринга Plotly:", e, plotlyJson);
-                        }
+                            const chartData = JSON.parse(el.dataset.plotlyJson);
+                            Plotly.newPlot(el.id, chartData.data, chartData.layout, {responsive: true, displaylogo: false});
+                            el.removeAttribute('data-plotly-json');
+                        } catch(e){console.error(e)}
                     }
                 });
             }
 
-            document.addEventListener('DOMContentLoaded', () => {
-                scrollToBottom();
-                const lastMsg = messageList.querySelector('.message:last-child');
-                if (lastMsg) {
-                    lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+            function updateLastMessageId() {
+                // (ИСПРАВЛЕНО) Ищем все div с классом .message
+                const allMessages = messageList.querySelectorAll('.message');
+                if (allMessages.length > 0) {
+                    const lastMsg = allMessages[allMessages.length - 1];
+                    const id = parseInt(lastMsg.dataset.messageId || '0');
+                    if (id > lastMessageId) lastMessageId = id;
                 }
-                renderChartsInElement(messageList);
+            }
+
+            function scrollToBottom() { messageList.scrollTop = messageList.scrollHeight; }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                updateLastMessageId();
+                renderCharts(messageList);
+                scrollToBottom();
+
+                // Проверка на "воскрешение" ожидания
+                const allMessages = messageList.querySelectorAll('.message');
+                if (allMessages.length > 0) {
+                    const lastMsg = allMessages[allMessages.length - 1];
+                    // Юзер - это синий фон, Бот - белый.
+                    // Если последнее сообщение - синее, значит бот еще не ответил.
+                    const isUser = lastMsg.querySelector('.bg-blue-600') !== null && lastMsg.querySelector('.bot-chart') === null;
+                    if (isUser) {
+                        setLoadingState(true);
+                        startPolling();
+                    }
+                }
             });
 
-            chatForm.addEventListener('submit', function (e) {
+            chatForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const messageText = messageInput.value.trim();
-                if (!messageText) return;
+                const text = messageInput.value.trim();
+                if(!text) return;
                 setLoadingState(true);
-
-                fetch(sendUrl, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-                    body: JSON.stringify({ message: messageText })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'processing') {
-                        const newMsgEl = addMessageHtml(data.user_message_html);
+                fetch(sendUrl, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({message:text})})
+                .then(r=>r.json()).then(d => {
+                    if(d.status==='processing') {
+                        addMessageHtml(d.user_message_html);
                         startPolling();
-                    } else {
-                        setLoadingState(false);
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка отправки:', error);
-                    setLoadingState(false);
-                });
+                    } else setLoadingState(false);
+                }).catch(()=>setLoadingState(false));
+            });
+
+            stopButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                stopPolling();
+                fetch(cancelUrl, {method:'POST', headers:{'X-CSRFToken':csrfToken}});
             });
 
             function setLoadingState(isLoading) {
                 messageInput.disabled = isLoading;
-                sendButton.disabled = isLoading;
-                typingIndicator.style.display = isLoading ? 'block' : 'none';
-                if (isLoading) messageInput.value = '';
+                if (isLoading) {
+                    sendButton.classList.add('hidden');
+                    stopButton.classList.remove('hidden');
+                    typingIndicator.classList.remove('hidden');
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                } else {
+                    sendButton.classList.remove('hidden');
+                    stopButton.classList.add('hidden');
+                    typingIndicator.classList.add('hidden');
+                }
             }
 
             function startPolling() {
-                if (pollingInterval) return;
+                if(pollingInterval) return;
                 pollingInterval = setInterval(() => {
                     fetch(`${getUrl}?last_message_id=${lastMessageId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                stopPolling();
-                                const newMsgEl = addMessageHtml(data.message_html);
-                                renderChartsInElement(newMsgEl);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Ошибка "опроса":', error);
+                    .then(r=>r.json()).then(d => {
+                        if(d.status==='success') {
                             stopPolling();
-                        });
+                            addMessageHtml(d.message_html);
+                        }
+                    });
                 }, 2500);
             }
 
-            function stopPolling() {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-                setLoadingState(false);
-            }
+            function stopPolling() { clearInterval(pollingInterval); pollingInterval = null; setLoadingState(false); }
 
             function addMessageHtml(html) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                const newMsgEl = tempDiv.firstElementChild;
-                messageList.appendChild(newMsgEl);
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const el = temp.firstElementChild;
+                messageList.insertBefore(el, typingIndicator);
 
-                const lastMsg = messageList.querySelector('.message:last-child');
-                if (lastMsg) {
-                    lastMessageId = parseInt(lastMsg.dataset.messageId || '0');
+                renderCharts(el);
+
+                const md = el.querySelector('.markdown-content');
+                if(md) {
+                    md.innerHTML = marked.parse(md.textContent);
+                    md.classList.add('prose');
                 }
-                scrollToBottom();
-                return newMsgEl;
-            }
 
-            function scrollToBottom() {
-                messageList.scrollTop = messageList.scrollHeight;
+                updateLastMessageId();
+                scrollToBottom();
+                return el;
             }
         })();
         {% endif %}
-        // ------------------------------------
-
     </script>
 </body>
 </html>

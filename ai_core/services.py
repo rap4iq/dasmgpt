@@ -19,7 +19,6 @@ def sync_database_schema(datasource: DataSource):
     """
     logger.info(f"Запуск интроспекции для: {datasource.name}")
 
-    # ----- ЛОГИРУЕМ ПАРАМЕТРЫ ПОДКЛЮЧЕНИЯ -----
     db_user = str(datasource.db_user or "")
     db_password = str(datasource.db_password or "")
     db_host = str(datasource.host or "")

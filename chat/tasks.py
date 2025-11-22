@@ -7,12 +7,9 @@ from ai_core.security import SQLValidator
 from ai_core.db_executor import DatabaseExecutor
 from ai_core.chart_generator import ChartGenerator
 from ai_core.response_formatter import ResponseFormatter
-from ai_core.models import DataSource
+from ai_core.models import DataSource, SchemaTable
 
 logger = logging.getLogger(__name__)
-
-# Лимит сообщений для контекста ("Скользящее окно")
-HISTORY_LIMIT = 6
 
 
 @shared_task(
@@ -24,63 +21,78 @@ HISTORY_LIMIT = 6
 )
 def get_ai_response(self, session_id, user_prompt):
     task_id = self.request.id
-    log_context = {'task_id': task_id, 'session_id': session_id}
+    log_context = {'task_id': task_id, 'session_id': session_id, 'prompt': user_prompt}
+    logger.info(f"Начинаем обработку.", extra=log_context)
 
     try:
+        logger.info("Инициализация сервисов ai_core", extra=log_context)
+
+        # 1. Находим активный источник данных
         active_datasource = DataSource.objects.filter(is_active=True).first()
         if not active_datasource:
-            raise ValueError("Нет активных источников данных (DataSource)!")
+            # Если нет источника, пробуем работать без него (на дефолтной БД),
+            # но лучше залогировать предупреждение.
+            logger.warning("Нет активного DataSource, используем default подключение.")
+
+        # 2. Получаем список разрешенных таблиц ДИНАМИЧЕСКИ из базы
+        # (Вместо settings.SQL_ALLOWED_TABLES)
+        allowed_tables_qs = SchemaTable.objects.filter(is_enabled=True)
+        if active_datasource:
+            allowed_tables_qs = allowed_tables_qs.filter(data_source=active_datasource)
+
+        # Превращаем QuerySet в список строк ['tv', 'rd', 'ooh']
+        dynamic_allowed_tables = list(allowed_tables_qs.values_list('table_name', flat=True))
+
+        if not dynamic_allowed_tables:
+            logger.warning("Внимание: Список разрешенных таблиц пуст! SQLValidator будет блокировать всё.")
+
+        # --- ИНИЦИАЛИЗАЦИЯ КЛАССОВ ---
 
         sql_gen = SQLGenerator(
-            model_name=settings.OLLAMA_MODEL,
+            model_name=settings.OLLAMA_SQL_MODEL,
             host=settings.OLLAMA_HOST,
             temperature=settings.OLLAMA_SQL_TEMPERATURE
         )
+
+        # Передаем динамический список таблиц в Валидатор
+        sql_validator = SQLValidator(allowed_tables=dynamic_allowed_tables)
+
+        # Передаем активный источник в Исполнитель
         db_executor = DatabaseExecutor(datasource=active_datasource)
-        sql_validator = SQLValidator(allowed_tables=settings.SQL_ALLOWED_TABLES)
+
         chart_gen = ChartGenerator()
+
         response_formatter = ResponseFormatter(
             model_name=settings.OLLAMA_MODEL,
             host=settings.OLLAMA_HOST,
             temperature=settings.OLLAMA_SUMMARY_TEMPERATURE
         )
+
         session = ChatSession.objects.get(id=session_id)
 
-    except Exception as e:
-        logger.error(f"Ошибка инициализации: {e}", extra=log_context)
-        _save_error_message(session_id, f"Ошибка конфигурации: {e}")
+    except (ChatSession.DoesNotExist) as e:
+        logger.error(f"Критическая ошибка: Сессия {session_id} не найдена.", extra=log_context)
+        self.request.disable_retries()
         return
+    except (ConnectionError) as e:
+        logger.error(f"Критическая ошибка подключения: {e}", extra=log_context)
+        _save_error_message(session_id, f"Ошибка подключения к AI-сервисам. Повторяем попытку...")
+        raise self.retry(exc=e)
 
     sql_query = ""
     try:
-        # --- (НОВОЕ) ПОДГОТОВКА ИСТОРИИ ---
-        # 1. Получаем последние N сообщений (исключая текущее, которое еще не в БД как "предыдущее")
-        # Мы берем их в обратном порядке, чтобы получить "срез", а потом разворачиваем
-        last_messages = Message.objects.filter(session=session).order_by('-created_at')[:HISTORY_LIMIT]
-
-        # Разворачиваем в хронологическом порядке
+        # --- (ШАГ 1: ГЕНЕРАЦИЯ SQL) ---
+        # Получаем историю для контекста
+        last_messages = Message.objects.filter(session=session).order_by('-created_at')[:6]
         history_messages = reversed(last_messages)
-
         formatted_history = []
         for msg in history_messages:
             role = 'user' if msg.role == 'user' else 'assistant'
             content = msg.content
-
-            # Если это ответ ИИ, и там был SQL, полезно добавить его в контекст,
-            # чтобы модель видела, как она отвечала раньше (опционально)
             if role == 'assistant' and msg.data_payload and msg.data_payload.get('sql_query'):
-                content += f"\n(Сгенерированный ранее SQL: {msg.data_payload['sql_query']})"
+                content += f"\n(SQL: {msg.data_payload['sql_query']})"
+            formatted_history.append({'role': role, 'content': content})
 
-            formatted_history.append({
-                'role': role,
-                'content': content
-            })
-
-        logger.info(f"Загружена история: {len(formatted_history)} сообщений.", extra=log_context)
-        # ----------------------------------
-
-        # --- (ШАГ 1: ГЕНЕРАЦИЯ SQL С ИСТОРИЕЙ) ---
-        # Передаем formatted_history в генератор
         sql_query = sql_gen.generate_sql(user_prompt, history=formatted_history)
         log_context['sql'] = sql_query
 
@@ -112,18 +124,18 @@ def get_ai_response(self, session_id, user_prompt):
         return "Task complete"
 
     except (PermissionError, ValueError, TimeoutError) as e:
-        logger.warning(f"Ошибка валидации/SQL: {e}", extra=log_context)
+        logger.warning(f"Ошибка валидации или SQL: {e}", extra=log_context)
         _save_error_message(session_id, f"Ошибка при обработке запроса: {e}\n\n**Сгенерированный SQL:**\n`{sql_query}`")
         self.request.disable_retries()
 
     except Exception as e:
         logger.error(f"Неизвестная ошибка: {e}", extra=log_context)
-        _save_error_message(session_id, f"Произошла ошибка. Повторяем попытку...")
+        _save_error_message(session_id, f"Извините, произошла ошибка. Повторяем попытку...")
         raise self.retry(exc=e)
 
 
-def _save_error_message(session_id, error_message):
+def _save_error_message(session_id: int, error_message: str):
     try:
         Message.objects.create(session_id=session_id, role='ai', content=error_message)
-    except:
+    except Exception:
         pass

@@ -137,58 +137,8 @@ CELERY_TASK_TIME_LIMIT = 300  # сек
 OLLAMA_HOST = 'http://localhost:11434'
 OLLAMA_MODEL = 'deepseek-r1:8b'
 OLLAMA_SQL_TEMPERATURE = 0.0  # 0.0 для точного SQL
-OLLAMA_SUMMARY_TEMPERATURE = 0.7 # 0.7 для "креативного" текста
+OLLAMA_SUMMARY_TEMPERATURE = 1.0 # 0.7 для "креативного" текста
+OLLAMA_SQL_MODEL = 'deepseek-r1:8b'
 
-
-# Максимальное кол-во строк, которое вернет SQL
 QUERY_ROW_LIMIT = 1000
-# Максимальное время выполнения SQL-запроса (в миллисекундах)
-QUERY_TIMEOUT_MS = 30000  # 30 секунд
-
-DDL_TV = """
-CREATE TABLE tv (
-    id SERIAL PRIMARY KEY,
-    channel_name VARCHAR(100),   -- Название ТВ канала
-    broadcast_date DATE,         -- Дата эфира
-    budget DECIMAL(10, 2),       -- Потраченный бюджет
-    coverage INT,                -- Охват
-    grp DECIMAL(5, 2)            -- Gross Rating Point
-);
-"""
-
-DDL_RD = """
-CREATE TABLE rd (
-    id SERIAL PRIMARY KEY,
-    station_name VARCHAR(100),   -- Название радиостанции
-    budget DECIMAL(10, 2),       -- Бюджет
-    broadcast_period VARCHAR(50),-- Период
-    region VARCHAR(100)          -- Регион
-);
-"""
-
-DDL_OOH = """
-CREATE TABLE ooh (
-    id SERIAL PRIMARY KEY,
-    media_type VARCHAR(100),     -- Тип носителя (билборд, ситилайт)
-    city VARCHAR(100),           -- Город
-    start_date DATE,             -- Дата начала
-    end_date DATE,               -- Дата окончания
-    expenses DECIMAL(10, 2)      -- Расходы (синоним budget)
-);
-"""
-
-# Собираем полную схему для промпта
-FULL_DB_SCHEMA = f"""
-Инструкции:
-- 'expenses' в 'ooh' - это то же самое, что 'budget'.
-- 'grp' - это 'Gross Rating Point'.
-- 'ooh' - наружная реклама, 'rd' - радио, 'tv' - телевидение.
-
-СХЕМА:
-{DDL_TV}
-
-{DDL_RD}
-
-{DDL_OOH}
-"""
-SQL_ALLOWED_TABLES = ['tv', 'rd', 'ooh']
+QUERY_TIMEOUT_MS = 30000

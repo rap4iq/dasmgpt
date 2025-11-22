@@ -9,5 +9,6 @@ urlpatterns = [
     path('c/<uuid:session_id>/get/', views.get_new_messages, name='get_new_messages'),
     path('c/<uuid:session_id>/rename/', views.rename_chat, name='rename_chat'),
     path('c/<uuid:session_id>/delete/', views.delete_chat, name='delete_chat'),
+    path('c/<uuid:session_id>/cancel/', views.cancel_generation, name='cancel_generation'),
     path('message/<int:message_id>/download_excel/', views.download_excel, name='download_excel'),
 ]

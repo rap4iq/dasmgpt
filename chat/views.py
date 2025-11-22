@@ -5,18 +5,16 @@ from django.views.decorators.http import require_POST
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.contrib import messages
-# (НОВЫЙ ИМПОРТ)
 from django.db import transaction
-
 from .models import ChatSession, Message
 from .tasks import get_ai_response
 import json
-
 import io
 import pandas as pd
-# (ИСПРАВЛЕН ИМПОРТ: DatabaseExecutor должен быть здесь, если используется в download_excel)
 from ai_core.models import DataSource
 from ai_core.db_executor import DatabaseExecutor
+from dasm.celery import app as celery_app
+
 from sqlalchemy import create_engine
 
 
@@ -53,7 +51,6 @@ def new_chat(request):
 
 @login_required
 def send_message(request, session_id):
-    # Ищем по public_id
     session = get_object_or_404(ChatSession, public_id=session_id, user=request.user)
 
     if request.method == 'POST':
@@ -64,29 +61,42 @@ def send_message(request, session_id):
             return HttpResponseBadRequest("Invalid JSON")
 
         if content:
-            # 1. Сообщение от пользователя
-            user_message = Message.objects.create(
-                session=session,
-                role='user',
-                content=content
-            )
+            user_message = Message.objects.create(session=session, role='user', content=content)
 
-            # 2. (ИСПРАВЛЕНО) Запускаем Celery ТОЛЬКО после коммита транзакции
-            # Мы передаем session.id (внутренний ID), так как tasks.py работает с ID
-            transaction.on_commit(
-                lambda: get_ai_response.delay(session_id=session.id, user_prompt=content)
-            )
+            # (ИЗМЕНЕНО) Сохраняем ID задачи
+            def run_task():
+                task = get_ai_response.delay(session_id=session.id, user_prompt=content)
+                # Сохраняем ID задачи в сессию, чтобы потом можно было отменить
+                session.current_task_id = task.id
+                session.save(update_fields=['current_task_id'])
+
+            transaction.on_commit(run_task)
 
             return JsonResponse({
                 'status': 'processing',
-                'user_message_html': render_to_string(
-                    'chat/components/message_block.html',
-                    {'message': user_message}
-                )
+                'user_message_html': render_to_string('chat/components/message_block.html', {'message': user_message})
             })
 
     return HttpResponseBadRequest("Invalid request")
 
+
+@require_POST
+@login_required
+def cancel_generation(request, session_id):
+    """
+    Останавливает выполнение задачи Celery.
+    """
+    session = get_object_or_404(ChatSession, public_id=session_id, user=request.user)
+
+    if session.current_task_id:
+        celery_app.control.revoke(session.current_task_id, terminate=True)
+
+        session.current_task_id = None
+        session.save(update_fields=['current_task_id'])
+
+        return JsonResponse({'status': 'canceled'})
+
+    return JsonResponse({'status': 'no_task'})
 
 @login_required
 def get_new_messages(request, session_id):
@@ -121,7 +131,6 @@ def get_new_messages(request, session_id):
 @login_required
 def rename_chat(request, session_id):
     try:
-        # Ищем по public_id
         session = get_object_or_404(ChatSession, public_id=session_id, user=request.user)
 
         data = json.loads(request.body)

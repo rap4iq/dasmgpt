@@ -12,6 +12,8 @@ class ChatSession(models.Model):
     title = models.CharField(max_length=255, default='Новый чат')
     is_public = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    current_task_id = models.CharField(max_length=255, null=True, blank=True)
+
 
     def __str__(self):
         return f"{self.title} ({self.user.email})"
