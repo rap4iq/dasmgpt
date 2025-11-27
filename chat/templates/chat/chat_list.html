@@ -288,6 +288,13 @@
             let lastMessageId = 0;
             let pollingInterval;
 
+             messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    chatForm.requestSubmit(); // Используем requestSubmit()
+                }
+            });
+
             function renderCharts(container) {
                 container.querySelectorAll('.chart-container-placeholder').forEach(el => {
                     if (el.dataset.plotlyJson) {

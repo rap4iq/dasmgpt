@@ -14,9 +14,10 @@ import pandas as pd
 from ai_core.models import DataSource
 from ai_core.db_executor import DatabaseExecutor
 from dasm.celery import app as celery_app
-
+import logging
 from sqlalchemy import create_engine
 
+logger = logging.getLogger(__name__)
 
 @login_required
 def chat_list(request):
@@ -61,6 +62,8 @@ def send_message(request, session_id):
             return HttpResponseBadRequest("Invalid JSON")
 
         if content:
+            logger.info(f"User {request.user.email} отправил запрос в чат {session.id}: '{content[:50]}...'")
+
             user_message = Message.objects.create(session=session, role='user', content=content)
 
             # (ИЗМЕНЕНО) Сохраняем ID задачи
@@ -171,6 +174,8 @@ def download_excel(request, message_id):
         sql_query = message.data_payload.get('sql_query')
         if not sql_query or not sql_query.strip().upper().startswith(('SELECT', 'WITH')):
             return HttpResponseBadRequest("В этом сообщении нет данных для выгрузки.")
+
+        logger.info(f"User {request.user.email} скачивает Excel для сообщения {message_id}")
 
         # Используем DatabaseExecutor
         active_datasource = DataSource.objects.filter(is_active=True).first()

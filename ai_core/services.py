@@ -75,24 +75,47 @@ def sync_database_schema(datasource: DataSource):
         logger.info(f"Найдено {len(table_list)} таблиц: {table_list!r}")
 
         found_tables = set()
+        IGNORED_PREFIXES = [
+            # Стандартные Django
+            'django_',
+            'auth_',
+
+            # Наши приложения
+            'users_',
+            'chat_',
+            'ai_core_',
+
+            # Служебные таблицы Postgres
+            'pg_',
+            'sql_',
+
+            # Сторонние библиотеки
+            'social_',  # если есть social-auth
+            'account_',  # если есть allauth
+            'easy_',  # если есть easy-thumbnails
+            'thumbnail_',
+            'celery_',
+            'django_celery_',
+        ]
 
         for table_name in table_list:
-            # Преобразуем на всякий случай к str
-            table_name = str(table_name)
+            # --- (НОВАЯ ПРОВЕРКА) ---
+            # Если имя таблицы начинается с ЛЮБОГО из запрещенных префиксов -> пропускаем
+            if any(table_name.startswith(prefix) for prefix in IGNORED_PREFIXES):
+                continue
 
-            if "postgresql" in datasource.engine:
-                if table_name.startswith(("pg_", "sql_", "django_")):
-                    continue
-            if "sqlite3" in datasource.engine:
-                if table_name.startswith("sqlite_"):
-                    continue
+            # Специфично для SQLite (иногда создает sqlite_sequence)
+            if table_name.startswith('sqlite_'):
+                continue
+            # ------------------------
 
             found_tables.add(table_name)
 
+            # 4. Сохраняем Таблицу (дальше код без изменений)
             table_obj, created = SchemaTable.objects.update_or_create(
                 data_source=datasource,
                 table_name=table_name,
-                defaults={"is_enabled": True},
+                defaults={'is_enabled': True}
             )
 
             if created:

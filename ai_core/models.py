@@ -45,7 +45,7 @@ class SchemaTable(models.Model):
     # nomic-embed-text выдает векторы размером 768
     embedding = VectorField(dimensions=768, null=True, blank=True)
 
-    is_enabled = models.BooleanField(default=True, help_text="Включить эту таблицу для ИИ?")
+    is_enabled = models.BooleanField(default=False, help_text="Включить эту таблицу для ИИ?")
 
     def __str__(self):
         return self.table_name
