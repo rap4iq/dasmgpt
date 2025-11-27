@@ -234,10 +234,10 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # сек
 
 OLLAMA_HOST = 'http://localhost:11434'
-OLLAMA_MODEL = 'deepseek-r1:8b'
+OLLAMA_MODEL = 'qwen3-coder:30b'
 OLLAMA_SQL_TEMPERATURE = 0.0  # 0.0 для точного SQL
 OLLAMA_TEMPERATURE = 1.0 # 0.7 для "креативного" текста
-OLLAMA_SQL_MODEL = 'deepseek-r1:8b'
+OLLAMA_SQL_MODEL = 'qwen3-coder:30b'
 
 QUERY_ROW_LIMIT = 1000
 QUERY_TIMEOUT_MS = 30000
