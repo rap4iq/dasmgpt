@@ -202,10 +202,8 @@ FERNET_KEYS = [
 SALT_KEY = config('SALT_KEY')
 
 
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+LANGUAGE_CODE = 'ru-ru'
+TIME_ZONE = 'Asia/Almaty'
 USE_I18N = True
 
 USE_TZ = True
@@ -229,14 +227,13 @@ LOGOUT_REDIRECT_URL = '/users/login/'
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
 
-# Настройки worker
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # сек
 
 OLLAMA_HOST = 'http://localhost:11434'
 OLLAMA_MODEL = 'qwen3-coder:30b'
-OLLAMA_SQL_TEMPERATURE = 0.0  # 0.0 для точного SQL
-OLLAMA_TEMPERATURE = 1.0 # 0.7 для "креативного" текста
+OLLAMA_SQL_TEMPERATURE = 0.0
+OLLAMA_TEMPERATURE = 1.0
 OLLAMA_SQL_MODEL = 'qwen3-coder:30b'
 
 QUERY_ROW_LIMIT = 1000

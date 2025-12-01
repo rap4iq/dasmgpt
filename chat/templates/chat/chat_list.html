@@ -10,74 +10,222 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <!-- 2. Шрифт Inter -->
+    <!-- 2. Шрифты -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
+    <!-- 3. Стили (DASM Group Theme) -->
     <style>
+        /* --- Цветовая Палитра DASM Group --- */
+        :root {
+            --background: #ffffff;
+            --foreground: #1a0a0f;
+            --sidebar-bg: #1a0a0f;
+            --sidebar-border: #2f1c23;
+            --sidebar-fg: #e5e7eb;
+            --sidebar-hover: #2f1c23;
+            --primary: #8B1538;
+            --primary-hover: #6d102b;
+            --primary-light: #fff0f5;
+            --input-bg: #f9fafb;
+            --border-color: #e5e7eb;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f9fafb; /* Светлый фон */
+            background-color: var(--background);
+            color: var(--foreground);
             margin: 0;
+            display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Анимации */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        /* --- Левая панель (Sidebar) --- */
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-fg);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            border-right: 1px solid var(--sidebar-border);
+        }
 
-        /* Скроллбар */
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
-        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+        .sidebar-header {
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--sidebar-border);
+            margin-bottom: 15px;
+        }
 
-        /* Markdown стили (Prose) */
+        .new-chat-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            background-color: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(139, 21, 56, 0.2);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .new-chat-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .chat-list {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .chat-list-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #9ca3af;
+            justify-content: space-between;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .chat-list-item:hover {
+            background-color: var(--sidebar-hover);
+            color: white;
+        }
+        .chat-list-item.active {
+            background-color: var(--sidebar-hover);
+            color: white;
+            border-color: var(--primary);
+            background: linear-gradient(90deg, rgba(139,21,56,0.1) 0%, transparent 100%);
+        }
+        .chat-list-item.active svg {
+            color: var(--primary);
+        }
+
+        .chat-list-item .chat-actions { display: none; margin-left: 10px; flex-shrink: 0; }
+        .chat-list-item:hover .chat-actions { display: flex; }
+        .chat-actions button { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 4px; transition: color 0.2s; }
+        .chat-actions button:hover { color: white; }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid var(--sidebar-border);
+        }
+        .sidebar-footer a {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #9ca3af;
+            transition: all 0.2s;
+        }
+        .sidebar-footer a:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        .sidebar-footer a svg { width: 20px; height: 20px; margin-right: 10px; }
+
+        /* --- Правая панель --- */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: var(--background);
+            overflow-x: hidden;
+            min-width: 0;
+        }
+
+        /* КОНТЕЙНЕР ЧАТА (С отступами) */
+        .chat-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 32px; /* Отступы слева и справа */
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .chat-header {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            margin-bottom: 10px;
+        }
+
+        /* --- (ИСПРАВЛЕНО) Сообщения --- */
+        .messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px 0;
+            margin-bottom: 10px;
+            display: block; /* ВАЖНО: Блочный режим, элементы идут сверху вниз */
+        }
+        .message {
+            padding: 0;
+            margin-bottom: 24px; /* Отступ снизу вместо gap */
+            width: 100%;
+            box-sizing: border-box;
+            display: flex; /* Внутри сообщения flex для аватара и текста */
+        }
+        .message:last-child { margin-bottom: 0; }
+
+        /* Markdown стили */
+        .prose { font-size: 15px; line-height: 1.7; color: #374151; }
         .prose p { margin-bottom: 0.75em; }
         .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
-        .prose strong { font-weight: 600; color: #111827; }
-        .prose code { background-color: #f3f4f6; padding: 0.2em 0.4em; border-radius: 0.25em; font-size: 0.875em; font-family: monospace; }
-        .prose pre { background-color: #1f2937; color: #f9fafb; padding: 1em; border-radius: 0.5em; overflow-x: auto; margin-top: 0.5em; }
+        .prose strong { font-weight: 600; color: #1a0a0f; }
+        .prose code { background-color: #f1f5f9; padding: 0.2em 0.4em; border-radius: 0.375em; font-size: 0.875em; font-family: monospace; color: #8B1538; }
+        .prose pre { background-color: #2f1c23; color: #f8fafc; padding: 1em; border-radius: 0.75em; overflow-x: auto; margin-top: 0.5em; }
 
-        /* Таблицы (Светлая тема) */
-        .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; background: white; border: 1px solid #e5e7eb; }
-        .prose thead { background-color: #f9fafb; border-bottom: 2px solid #e5e7eb; }
-        .prose th { text-align: left; padding: 0.75rem 1rem; font-weight: 600; border: 1px solid #e5e7eb; color: #374151; }
-        .prose td { padding: 0.75rem 1rem; border: 1px solid #e5e7eb; color: #4b5563; }
-        .prose tr:hover { background-color: #f8fafc; }
+        /* Таблицы */
+        .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .prose thead { background-color: #fff0f5; border-bottom: 2px solid #fbcfe8; }
+        .prose th { text-align: left; padding: 12px 16px; font-weight: 600; color: #8B1538; }
+        .prose td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #475569; }
+        .prose tr:hover { background-color: #fff0f5; }
 
-        /* График */
-        .bot-chart {
-            width: 100%;
-            height: 400px;
-            background-color: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
-            margin-top: 1rem;
-            overflow: hidden;
-        }
-
-        /* Стили кнопок действий (SQL/Excel) */
+        /* Действия */
         .message-actions {
             margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+            border-top: 1px solid #f3f4f6;
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
             align-items: center;
         }
         .excel-btn {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            font-size: 12px;
-            padding: 4px 10px;
-            background-color: #ecfdf5; /* green-50 */
-            color: #059669; /* green-600 */
+            gap: 6px;
+            font-size: 13px;
+            padding: 6px 12px;
+            background-color: #ecfdf5;
+            color: #047857;
             text-decoration: none;
             border-radius: 6px;
             font-weight: 500;
@@ -85,59 +233,109 @@
             transition: all 0.2s;
         }
         .excel-btn:hover { background-color: #d1fae5; }
+
+        .bot-chart {
+            width: 100%;
+            height: 400px;
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-top: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* Форма ввода */
+        .form-container {
+            display: flex;
+            flex-shrink: 0;
+            padding-top: 10px;
+            position: relative;
+        }
+        .form-container textarea {
+            flex-grow: 1;
+            padding: 16px 56px 16px 20px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            resize: none;
+            background-color: var(--background);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+            font-size: 16px;
+            max-height: 200px;
+        }
+        .form-container textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(139, 21, 56, 0.1);
+        }
+        .form-container button {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            padding: 8px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .form-container button:hover { background-color: var(--primary-hover); }
+        .form-container button:disabled { background-color: #e2e8f0; cursor: not-allowed; }
+
+        #stop-button { background-color: #9f1239; }
+        #stop-button:hover { background-color: #881337; }
+        #typing-indicator { display: none; margin-bottom: 15px; color: #64748b; font-size: 0.9rem; padding-left: 60px; }
+
+        /* Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #2f1c23; border-radius: 20px; }
+
+        .hidden { display: none !important; }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="flex h-screen bg-gray-50 text-gray-900">
+<body>
 
-    <!-- ======================= -->
-    <!-- === САЙДБАР (Светлый) === -->
-    <!-- ======================= -->
-    <aside class="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transition-all duration-300 z-20">
-
-        <!-- Шапка -->
-        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 class="font-semibold text-lg tracking-tight text-gray-900 flex items-center gap-2">
-                <!-- Логотип (Sparkles) -->
-                <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
+    <!-- САЙДБАР -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="font-semibold text-lg tracking-tight flex items-center gap-2" style="color: white;">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
                 DasmGPT
             </h2>
         </div>
 
-        <!-- Кнопка "Новый чат" -->
         <div class="p-3">
-            <a href="{% url 'new_chat' %}" class="flex items-center justify-start gap-3 w-full px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl shadow-sm transition-all hover:shadow-md group">
-                <div class="bg-blue-50 p-1.5 rounded-lg group-hover:bg-blue-100 transition-colors">
-                    <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                </div>
-                <span class="font-medium">Новый чат</span>
+            <a href="{% url 'new_chat' %}" class="new-chat-btn">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span>Новый чат</span>
             </a>
         </div>
 
-        <!-- Список чатов -->
-        <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scroll" id="chat-list-container">
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2 mt-2">История</div>
-
+        <div class="chat-list custom-scroll" id="chat-list-container">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider px-4 mb-2 mt-2">История</div>
             {% for s in sessions %}
-            <!-- Используем public_id (UUID) -->
             <div id="session-{{ s.public_id }}" class="group relative">
                 <a href="{% url 'chat_detail' s.public_id %}"
-                   class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 {% if session and s.public_id == session.public_id %}bg-blue-50 text-blue-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+                   class="chat-list-item {% if session and s.public_id == session.public_id %}active{% endif %}"
+                   data-session-id="{{ s.public_id }}">
 
-                    <svg class="w-4 h-4 {% if session and s.public_id == session.public_id %}text-blue-500{% else %}text-gray-400{% endif %}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span class="chat-title" id="title-{{ s.public_id }}">{{ s.title }}</span>
 
-                    <span class="truncate text-sm flex-1" id="title-{{ s.public_id }}">{{ s.title }}</span>
-
-                    <!-- Действия (Rename/Delete) -->
-                    <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 bg-gradient-to-l from-white/90 to-transparent pl-2">
-                        <button class="rename-btn p-1.5 hover:bg-gray-200 rounded-md text-gray-500 hover:text-gray-700"
-                                data-id="{{ s.public_id }}"
-                                data-url="{% url 'rename_chat' s.public_id %}" title="Переименовать">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    <div class="chat-actions">
+                        <button class="rename-btn" data-id="{{ s.public_id }}" data-url="{% url 'rename_chat' s.public_id %}" title="Переименовать">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                         </button>
-                        <button class="delete-btn p-1.5 hover:bg-red-100 rounded-md text-gray-500 hover:text-red-600 ml-1"
-                                data-id="{{ s.public_id }}"
-                                data-url="{% url 'delete_chat' s.public_id %}" title="Удалить">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        <button class="delete-btn" data-id="{{ s.public_id }}" data-url="{% url 'delete_chat' s.public_id %}" title="Удалить">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                     </div>
                 </a>
@@ -145,82 +343,77 @@
             {% endfor %}
         </div>
 
-        <!-- Футер -->
-        <div class="p-3 border-t border-gray-100">
-            <a href="{% url 'logout' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors">
-                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                <span class="text-sm font-medium">Выйти</span>
+        <div class="sidebar-footer">
+            <a href="{% url 'logout' %}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Выйти
             </a>
         </div>
     </aside>
 
-
-    <!-- ======================= -->
-    <!-- === ОСНОВНАЯ ОБЛАСТЬ === -->
-    <!-- ======================= -->
-    <main class="flex-1 flex flex-col h-screen bg-white relative overflow-hidden min-w-0">
+    <!-- ОСНОВНАЯ ОБЛАСТЬ -->
+    <main class="main-content">
 
         {% if not session %}
-            <!-- ЭКРАН ПРИВЕТСТВИЯ -->
             <div class="flex-1 flex flex-col items-center justify-center p-4 animate-fade-in">
-                <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-600 shadow-sm animate-bounce duration-[3000ms]">
+                <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6 text-[#8B1538] shadow-sm">
                     <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Добро пожаловать, {{ user.full_name|default:user.email }}</h1>
-                <p class="text-gray-500 mb-10">Задайте любой вопрос о данных Dasm Group</p>
+                <h1 class="text-2xl font-bold mb-2" style="color: #1a0a0f;">Добро пожаловать</h1>
+                <p class="text-gray-500 mb-10">Корпоративный ИИ-ассистент Dasm Group</p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
-                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group">
-                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-blue-700">Анализ ТВ</span>
+                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-[#8B1538] hover:bg-[#fff0f5] transition-all group">
+                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-[#8B1538]">Анализ ТВ</span>
                         <span class="block text-xs text-gray-500">Покажи расходы за октябрь</span>
                     </button>
-                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all group">
-                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-purple-700">Наружная реклама</span>
-                        <span class="block text-xs text-gray-500">Где самые дорогие билборды?</span>
+                    <button onclick="window.location.href='{% url 'new_chat' %}'" class="text-left p-4 rounded-xl border border-gray-200 hover:border-[#8B1538] hover:bg-[#fff0f5] transition-all group">
+                        <span class="block text-sm font-semibold text-gray-900 mb-1 group-hover:text-[#8B1538]">Наружная реклама</span>
+                        <span class="block text-xs text-gray-500">Самые дорогие билборды</span>
                     </button>
                 </div>
             </div>
 
         {% else %}
             <!-- ЧАТ -->
-            <div class="h-16 border-b border-gray-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-                <h2 class="font-semibold text-gray-800 truncate" id="chat-title-header">{{ session.title }}</h2>
-                <div class="text-xs text-gray-400">{{ session.created_at|date:"d.m.Y" }}</div>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scroll" id="message-list">
-                {% for msg in messages %}
-                    {% include 'chat/components/message_block.html' with message=msg %}
-                {% endfor %}
-
-                <div id="typing-indicator" class="hidden flex items-center gap-2 text-gray-400 text-sm ml-4 animate-pulse">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
-                    DasmGPT думает...
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h2 class="font-semibold truncate text-[#1a0a0f]" id="chat-title-header">{{ session.title }}</h2>
+                    <div class="text-xs text-gray-500">{{ session.created_at|date:"d.m.Y" }}</div>
                 </div>
-            </div>
 
-            <div class="p-4 md:p-6 bg-white border-t border-gray-100">
-                <form id="chat-form" class="max-w-3xl mx-auto relative flex items-end shadow-lg rounded-2xl border border-gray-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
-                    {% csrf_token %}
-                    <textarea
-                        id="message-input"
-                        name="message"
-                        placeholder="Введите сообщение..."
-                        class="w-full max-h-40 py-4 pl-5 pr-14 bg-transparent border-none focus:ring-0 resize-none text-gray-700 placeholder-gray-400 leading-relaxed"
-                        rows="1"
-                        oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
-                    ></textarea>
+                <div class="messages custom-scroll" id="message-list">
+                    {% for msg in messages %}
+                        {% include 'chat/components/message_block.html' with message=msg %}
+                    {% endfor %}
 
-                    <!-- Кнопка Отправить -->
-                    <button id="send-button" type="submit" class="absolute right-2 bottom-2 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-transform active:scale-95 disabled:opacity-50">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </button>
+                    <div id="typing-indicator" class="hidden flex items-center gap-2 text-gray-400 text-sm ml-4 animate-pulse">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /><path d="M17 4a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 2 -2" /><path d="M19 11h2m-1 -1v2" /></svg>
+                        DasmGPT думает...
+                    </div>
+                </div>
 
-                    <!-- Кнопка Стоп (Красная) -->
-                    <button id="stop-button" type="button" class="hidden absolute right-2 bottom-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-transform active:scale-95">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-                    </button>
-                </form>
+                <div class="p-4 md:p-6 bg-white border-t border-gray-100">
+                    <form id="chat-form" class="max-w-3xl mx-auto relative flex items-end shadow-lg rounded-2xl border border-gray-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#8B1538]/20 focus-within:border-[#8B1538] transition-all">
+                        {% csrf_token %}
+                        <textarea
+                            id="message-input"
+                            name="message"
+                            placeholder="Введите сообщение..."
+                            class="w-full max-h-40 py-4 pl-5 pr-14 bg-transparent border-none focus:ring-0 resize-none text-gray-700 placeholder-gray-400 leading-relaxed"
+                            rows="1"
+                            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
+                        ></textarea>
+
+                        <button id="send-button" type="submit" class="absolute right-2 bottom-2 p-2 bg-[#8B1538] hover:bg-[#6d102b] text-white rounded-xl transition-transform active:scale-95 disabled:opacity-50">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+
+                        <button id="stop-button" type="button" class="hidden absolute right-2 bottom-2 p-2 bg-[#8B1538] hover:bg-[#6d102b] text-white rounded-xl transition-transform active:scale-95">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                        </button>
+                    </form>
+                </div>
             </div>
         {% endif %}
 
@@ -229,50 +422,23 @@
     <!-- JS ЛОГИКА -->
     <script>
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-
-        // === Markdown Render ===
-        function renderMarkdown() {
-            document.querySelectorAll('.markdown-content').forEach(el => {
-                if (!el.dataset.rendered) {
-                    el.innerHTML = marked.parse(el.textContent);
-                    el.dataset.rendered = "true";
-                    el.classList.add('prose');
-                }
-            });
-        }
+        function renderMarkdown() { document.querySelectorAll('.markdown-content').forEach(el => { if (!el.dataset.rendered) { el.innerHTML = marked.parse(el.textContent); el.dataset.rendered = "true"; el.classList.add('prose'); } }); }
         document.addEventListener('DOMContentLoaded', renderMarkdown);
 
-        // === Логика Сайдбара ===
         document.getElementById('chat-list-container').addEventListener('click', function(e) {
             const renameBtn = e.target.closest('.rename-btn');
             if (renameBtn) {
                 e.preventDefault(); e.stopPropagation();
-                const url = renameBtn.dataset.url;
-                const sessionId = renameBtn.dataset.id;
-                const newTitle = prompt("Новое название:");
-                if (newTitle) {
-                    fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({new_title:newTitle})})
-                    .then(r=>r.json()).then(d=>{
-                        if(d.status==='success') {
-                            document.getElementById(`title-${sessionId}`).innerText = d.new_title;
-                            const h = document.getElementById('chat-title-header');
-                            if(h && "{{ session.public_id|default:'' }}" === sessionId) h.innerText = d.new_title;
-                        }
-                    });
-                }
+                const url = renameBtn.dataset.url; const id = renameBtn.dataset.id; const newT = prompt("Новое название:");
+                if (newT) fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({new_title:newT})}).then(r=>r.json()).then(d=>{ if(d.status==='success') { document.getElementById(`title-${id}`).innerText = d.new_title; const h = document.getElementById('chat-title-header'); if(h && "{{ session.public_id|default:'' }}" === id) h.innerText = d.new_title; } });
             }
             const deleteBtn = e.target.closest('.delete-btn');
             if (deleteBtn) {
                 e.preventDefault(); e.stopPropagation();
-                if(confirm("Удалить чат?")) {
-                    const id = deleteBtn.dataset.id;
-                    fetch(deleteBtn.dataset.url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}})
-                    .then(r=>r.json()).then(d=>{ if(d.status==='success') { document.getElementById(`session-${id}`).remove(); if("{{ session.public_id|default:'' }}" === id) window.location.href='/'; }});
-                }
+                if(confirm("Удалить?")) fetch(deleteBtn.dataset.url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}}).then(r=>r.json()).then(d=>{ if(d.status==='success') { document.getElementById(`session-${deleteBtn.dataset.id}`).remove(); if("{{ session.public_id|default:'' }}" === deleteBtn.dataset.id) window.location.href='/'; } });
             }
         });
 
-        // === Логика Чата ===
         {% if session %}
         (function() {
             const messageList = document.getElementById('message-list');
@@ -284,130 +450,48 @@
             const sendUrl = "{% url 'send_message' session.public_id %}";
             const getUrl = "{% url 'get_new_messages' session.public_id %}";
             const cancelUrl = "{% url 'cancel_generation' session.public_id %}";
+            let lastMessageId = 0, pollingInterval;
 
-            let lastMessageId = 0;
-            let pollingInterval;
-
-             messageInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    chatForm.requestSubmit(); // Используем requestSubmit()
-                }
-            });
-
-            function renderCharts(container) {
-                container.querySelectorAll('.chart-container-placeholder').forEach(el => {
-                    if (el.dataset.plotlyJson) {
-                        try {
-                            const chartData = JSON.parse(el.dataset.plotlyJson);
-                            Plotly.newPlot(el.id, chartData.data, chartData.layout, {responsive: true, displaylogo: false});
-                            el.removeAttribute('data-plotly-json');
-                        } catch(e){console.error(e)}
-                    }
-                });
-            }
-
-            function updateLastMessageId() {
-                // (ИСПРАВЛЕНО) Ищем все div с классом .message
-                const allMessages = messageList.querySelectorAll('.message');
-                if (allMessages.length > 0) {
-                    const lastMsg = allMessages[allMessages.length - 1];
-                    const id = parseInt(lastMsg.dataset.messageId || '0');
-                    if (id > lastMessageId) lastMessageId = id;
-                }
-            }
-
+            function renderCharts(c) { c.querySelectorAll('.chart-container-placeholder').forEach(el => { if (el.dataset.plotlyJson) { try { const d = JSON.parse(el.dataset.plotlyJson); Plotly.newPlot(el.id, d.data, d.layout, {responsive: true, displaylogo: false}); el.removeAttribute('data-plotly-json'); } catch(e){} } }); }
+            function updateLastMessageId() { const msgs = messageList.querySelectorAll('.message'); if (msgs.length) { const last = msgs[msgs.length-1]; const id = parseInt(last.dataset.messageId||'0'); if(id>lastMessageId) lastMessageId=id; } }
             function scrollToBottom() { messageList.scrollTop = messageList.scrollHeight; }
 
             document.addEventListener('DOMContentLoaded', () => {
-                updateLastMessageId();
-                renderCharts(messageList);
-                scrollToBottom();
-
-                // Проверка на "воскрешение" ожидания
-                const allMessages = messageList.querySelectorAll('.message');
-                if (allMessages.length > 0) {
-                    const lastMsg = allMessages[allMessages.length - 1];
-                    // Юзер - это синий фон, Бот - белый.
-                    // Если последнее сообщение - синее, значит бот еще не ответил.
-                    const isUser = lastMsg.querySelector('.bg-blue-600') !== null && lastMsg.querySelector('.bot-chart') === null;
-                    if (isUser) {
-                        setLoadingState(true);
-                        startPolling();
-                    }
-                }
+                updateLastMessageId(); renderCharts(messageList); scrollToBottom();
+                const msgs = messageList.querySelectorAll('.message');
+                if(msgs.length) { const last=msgs[msgs.length-1]; const isUser=last.querySelector('.bg-[#8B1538]')!==null; if(isUser) { setLoading(true); startPolling(); } }
             });
+
+            messageInput.addEventListener('keydown', (e) => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); chatForm.requestSubmit(); } });
 
             chatForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const text = messageInput.value.trim();
-                if(!text) return;
-                setLoadingState(true);
-                fetch(sendUrl, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({message:text})})
-                .then(r=>r.json()).then(d => {
-                    if(d.status==='processing') {
-                        addMessageHtml(d.user_message_html);
-                        startPolling();
-                    } else setLoadingState(false);
-                }).catch(()=>setLoadingState(false));
+                e.preventDefault(); const t = messageInput.value.trim(); if(!t) return;
+                setLoading(true);
+                fetch(sendUrl, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({message:t})})
+                .then(r=>r.json()).then(d=>{ if(d.status==='processing') { addMessageHtml(d.user_message_html); startPolling(); } else setLoading(false); })
+                .catch(()=>setLoading(false));
             });
 
-            stopButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                stopPolling();
-                fetch(cancelUrl, {method:'POST', headers:{'X-CSRFToken':csrfToken}});
-            });
+            stopButton.addEventListener('click', (e) => { e.preventDefault(); stopPolling(); fetch(cancelUrl, {method:'POST', headers:{'X-CSRFToken':csrfToken}}); });
 
-            function setLoadingState(isLoading) {
+            function setLoading(isLoading) {
                 messageInput.disabled = isLoading;
-                if (isLoading) {
-                    sendButton.classList.add('hidden');
-                    stopButton.classList.remove('hidden');
-                    typingIndicator.classList.remove('hidden');
-                    messageInput.value = '';
-                    messageInput.style.height = 'auto';
-                } else {
-                    sendButton.classList.remove('hidden');
-                    stopButton.classList.add('hidden');
-                    typingIndicator.classList.add('hidden');
-                }
+                if(isLoading) { sendButton.classList.add('hidden'); stopButton.classList.remove('hidden'); typingIndicator.classList.remove('hidden'); messageInput.value=''; messageInput.style.height='auto'; }
+                else { sendButton.classList.remove('hidden'); stopButton.classList.add('hidden'); typingIndicator.classList.add('hidden'); }
             }
 
-            function startPolling() {
-                if(pollingInterval) return;
-                pollingInterval = setInterval(() => {
-                    fetch(`${getUrl}?last_message_id=${lastMessageId}`)
-                    .then(r=>r.json()).then(d => {
-                        if(d.status==='success') {
-                            stopPolling();
-                            addMessageHtml(d.message_html);
-                        }
-                    });
-                }, 2500);
-            }
-
-            function stopPolling() { clearInterval(pollingInterval); pollingInterval = null; setLoadingState(false); }
+            function startPolling() { if(pollingInterval) return; pollingInterval = setInterval(() => { fetch(`${getUrl}?last_message_id=${lastMessageId}`).then(r=>r.json()).then(d=>{ if(d.status==='success') { stopPolling(); addMessageHtml(d.message_html); } }); }, 2500); }
+            function stopPolling() { clearInterval(pollingInterval); pollingInterval = null; setLoading(false); }
 
             function addMessageHtml(html) {
-                const temp = document.createElement('div');
-                temp.innerHTML = html;
-                const el = temp.firstElementChild;
-                messageList.insertBefore(el, typingIndicator);
-
-                renderCharts(el);
-
-                const md = el.querySelector('.markdown-content');
-                if(md) {
-                    md.innerHTML = marked.parse(md.textContent);
-                    md.classList.add('prose');
-                }
-
-                updateLastMessageId();
-                scrollToBottom();
-                return el;
+                const temp = document.createElement('div'); temp.innerHTML = html; const el = temp.firstElementChild;
+                messageList.insertBefore(el, typingIndicator); renderCharts(el);
+                const md = el.querySelector('.markdown-content'); if(md) { md.innerHTML = marked.parse(md.textContent); md.classList.add('prose'); }
+                updateLastMessageId(); scrollToBottom();
             }
         })();
         {% endif %}
     </script>
 </body>
 </html>
+
