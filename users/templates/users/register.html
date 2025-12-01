@@ -37,8 +37,8 @@
         }
         .form-as-p input:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            border-color: #8B1538; /* Фирменный красный */
+            box-shadow: 0 0 0 4px rgba(139, 21, 56, 0.1); /* Красная тень */
             background-color: #ffffff;
         }
         /* Ошибки */
@@ -49,7 +49,7 @@
             padding-left: 0.5rem;
         }
         .form-as-p .helptext {
-            display: none; /* Скрываем дефолтные подсказки пароля для чистоты, или можно стилизовать */
+            display: none;
         }
     </style>
 </head>
@@ -58,7 +58,8 @@
     <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
 
         <div class="px-8 pt-8 pb-6 text-center">
-            <div class="mx-auto w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4 text-blue-600">
+            <!-- Логотип: Красный на светло-розовом фоне -->
+            <div class="mx-auto w-12 h-12 bg-[#fff0f5] rounded-xl flex items-center justify-center mb-4 text-[#8B1538]">
                 <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
             </div>
             <h2 class="text-2xl font-bold text-gray-900">Создать аккаунт</h2>
@@ -77,20 +78,20 @@
         <form method="POST" action="{% url 'register' %}" class="px-8 pb-8">
             {% csrf_token %}
 
-            <!-- Рендерим форму через класс для стилизации -->
             <div class="form-as-p">
                 {{ form.as_p }}
             </div>
 
+            <!-- Кнопка -->
             <button type="submit"
-                    class="w-full mt-6 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform active:scale-[0.98] transition-all duration-200">
+                    class="w-full mt-6 py-2.5 px-4 bg-[#8B1538] hover:bg-[#6d102b] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform active:scale-[0.98] transition-all duration-200">
                 Зарегистрироваться
             </button>
 
             <div class="text-center mt-6 pt-6 border-t border-gray-100">
                 <p class="text-sm text-gray-500">
                     Уже есть аккаунт?
-                    <a href="{% url 'login' %}" class="font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                    <a href="{% url 'login' %}" class="font-semibold text-[#8B1538] hover:text-[#6d102b] hover:underline">
                         Войти
                     </a>
                 </p>
