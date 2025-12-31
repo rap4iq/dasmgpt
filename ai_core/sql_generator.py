@@ -3,111 +3,101 @@ import logging
 import re
 from django.conf import settings
 from ai_core.models import SchemaTable, SchemaColumn
-
-# Импорт для векторного поиска
 from pgvector.django import CosineDistance
 
 logger = logging.getLogger(__name__)
 
 
 class SQLGenerator:
+    """
+    Отвечает за "Звонок 1" к Ollama.
+    ВЕРСИЯ 3.5: Авто-определение имени модели эмбеддингов.
+    """
+
     def __init__(self, model_name: str, host: str, temperature: float):
         self.model_name = model_name
         self.host = host
         self.temperature = temperature
+
+        # Дефолтное имя
         self.embedding_model = 'nomic-embed-text'
 
         try:
             self.client = ollama.Client(host=self.host)
+
+            # (НОВОЕ) Пытаемся найти правильное имя модели в списке
+            try:
+                models_list = self.client.list()
+                available_models = [m['model'] for m in models_list['models']]
+                for m in available_models:
+                    if 'nomic-embed-text' in m:
+                        self.embedding_model = m
+                        break
+                logger.info(f"SQLGenerator использует эмбеддинг-модель: {self.embedding_model}")
+            except:
+                logger.warning("Не удалось получить список моделей Ollama, используем дефолтное имя 'nomic-embed-text'")
+
         except Exception as e:
             logger.error(f"Не удалось подключиться к Ollama: {e}")
             raise ConnectionError(f"Ollama недоступна по адресу {host}")
 
     def _get_query_embedding(self, text: str):
-        """Превращает вопрос пользователя в вектор."""
         try:
             response = self.client.embeddings(model=self.embedding_model, prompt=text)
             return response['embedding']
         except Exception as e:
-            logger.error(f"Ошибка генерации вектора для запроса: {e}")
-            raise ValueError("Не удалось векторизовать запрос. Проверьте, скачана ли модель 'nomic-embed-text'.")
+            logger.error(f"Ошибка генерации вектора для запроса (Модель {self.embedding_model}): {e}")
+            raise ValueError(f"Не удалось векторизовать запрос. Проверьте модель '{self.embedding_model}'.")
+
+    # ... (Остальные методы: _find_relevant_tables, _build_system_prompt, _parse_sql_from_response, generate_sql) ...
+    # ОНИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ, КОПИРУЙТЕ ИХ ИЗ ПРОШЛОЙ ВЕРСИИ
 
     def _find_relevant_tables(self, user_prompt: str, limit: int = 5):
         logger.info(f"Маршрутизатор: Ищу таблицы для '{user_prompt}'...")
         query_vector = self._get_query_embedding(user_prompt)
 
-        found_table_ids = set()
-
-        # ПОИСК 1: По Колонкам (Самый точный)
-        relevant_columns = SchemaColumn.objects.filter(
+        relevant_columns_qs = SchemaColumn.objects.filter(
             is_enabled=True,
             embedding__isnull=False
         ).annotate(
             distance=CosineDistance('embedding', query_vector)
-        ).order_by('distance')[:10]  # Берем топ-10 колонок
+        ).order_by('distance')[:15]
 
-        for col in relevant_columns:
-            # Добавляем, если дистанция хорошая (меньше 0.6 - это эмпирическое число)
-            # Но для начала берем всё, что нашли
-            found_table_ids.add(col.schema_table_id)
+        table_ids_list = list(relevant_columns_qs.values_list('schema_table_id', flat=True))
+        unique_table_ids = list(set(table_ids_list))
 
-        # ПОИСК 2: По Таблицам (Если в колонках не нашли или для надежности)
-        relevant_tables_direct = SchemaTable.objects.filter(
-            is_enabled=True,
-            embedding__isnull=False
-        ).annotate(
-            distance=CosineDistance('embedding', query_vector)
-        ).order_by('distance')[:3]  # Берем топ-3 таблицы
-
-        for tbl in relevant_tables_direct:
-            found_table_ids.add(tbl.id)
-
-        # 3. Собираем финальный QuerySet
-        if not found_table_ids:
-            logger.warning("Маршрутизатор: Векторный поиск ничего не нашел. Использую дефолт.")
-            return SchemaTable.objects.filter(is_enabled=True)[:3]
-
-        final_tables = SchemaTable.objects.filter(
-            id__in=list(found_table_ids),
+        relevant_tables = SchemaTable.objects.filter(
+            id__in=unique_table_ids,
             is_enabled=True,
             data_source__is_active=True
         )
 
-        # Ограничиваем до 3-х штук, чтобы не перегружать промпт
-        final_tables = final_tables[:3]
+        found_names = [t.table_name for t in relevant_tables]
+        logger.info(f"Маршрутизатор: Найдено {len(found_names)} релевантных таблиц: {found_names}")
 
-        names = [t.table_name for t in final_tables]
-        logger.info(f"Маршрутизатор: Найдено {len(names)} таблиц: {names}")
+        if not relevant_tables.exists():
+            logger.warning("Маршрутизатор: Векторный поиск не дал результатов! Использую дефолтные таблицы.")
+            return SchemaTable.objects.filter(is_enabled=True)[:3]
 
-        return final_tables
+        return relevant_tables
 
     def _build_system_prompt(self, user_prompt: str) -> str:
-        """
-        Строит DDL-промпт ДИНАМИЧЕСКИ.
-        """
-        # 1. Запускаем Маршрутизатор
         target_tables = self._find_relevant_tables(user_prompt)
 
         generated_ddl = []
         instructions = [
-            "Ты — безмолвный генератор SQL-запросов.",
-            "Твоя единственная задача — вывести ОДИН корректный SQL-запрос на PostgreSQL.",
-            "Ты НЕ ОБЩАЕШЬСЯ с пользователем.",
-            "Ты НЕ ДОЛЖЕН писать текст, комментарии, рассуждения, объяснения или разговоры.",
-            "ТЫ НИКОГДА НЕ ПИШЕШЬ НИ ОДНОГО СЛОВА, КРОМЕ SQL.",
-            "Если вопрос содержит условия, фильтры или сортировки — ОБЯЗАТЕЛЬНО добавь эти поля в SELECT.",
-            "Используй только таблицы и колонки, которые я тебе даю ниже.",
-            "Никогда не придумывай таблицы или поля.",
-            "Все текстовые фильтры выполняй через ILIKE с процентами: ILIKE '%значение%'.",
-            "4. ВАЖНО: Если пользователь ищет категорию (напр. 'билборды'), ищи варианты на РУССКОМ (ILIKE '%билборд%') ИЛИ на АНГЛИЙСКОМ (ILIKE '%billboard%'), используя OR. База может содержать данные на любом языке.",
-            "Не используй TRY/CATCH, не используй функции, которых нет в PostgreSQL.",
-            "Никаких комментариев (не используй -- или /* */).",
-            "Если в ответе будет хоть одно слово, не относящееся к SQL — это считается ошибкой.",
-            "Выводи только SQL без точки в конце, без лишних символов."
+            "Ты - SQL-генератор для PostgreSQL.",
+            "Твоя задача: сгенерировать ОДИН SQL-запрос, отвечающий на вопрос пользователя.",
+            "1. Используй ТОЛЬКО предоставленные ниже таблицы.",
+            "2. НЕ используй Markdown (```sql ... ```). Только чистый код.",
+            "3. Для поиска текста (VARCHAR) используй 'ILIKE'.",
+            "4. ВАЖНО: Если пользователь ищет категорию, ищи варианты на РУССКОМ (ILIKE '%...%') ИЛИ на АНГЛИЙСКОМ (ILIKE '%...%'), используя OR.",
+            "5. ПРАВИЛО: Если ты фильтруешь (WHERE) или сортируешь (ORDER BY) по колонке, ты ОБЯЗАН добавить эту колонку в SELECT.",
+            "6. Если вопрос 'Где...', включи в SELECT не только локацию, но и ключевые метрики (бюджет, продажи).",
+            "\nСХЕМА БД:",
         ]
 
         for table in target_tables:
-            # ... (код генерации DDL без изменений) ...
             desc = f" ({table.description_ru})" if table.description_ru else ""
             generated_ddl.append(f"-- Таблица: {table.table_name}{desc}")
             generated_ddl.append(f"CREATE TABLE {table.table_name} (")
@@ -123,29 +113,21 @@ class SQLGenerator:
 
         return "\n".join(instructions) + "\n" + "\n".join(generated_ddl)
 
-    def _parse_sql_from_response(self, text: str) -> str:
-        text = text.strip()
-
-        # 1. Забрать всё, что начинается с SELECT или WITH (главное правило)
-        match = re.search(r"(SELECT|WITH)\s+.*", text, re.IGNORECASE | re.DOTALL)
-        if match:
-            sql = match.group(0).strip()
-            return sql.rstrip(";") + ";"
-
-        # 2. Второй шанс — если модель всё же сделала блок ```sql
-        match = re.search(r"```sql\s*(.*?)\s*```", text, re.IGNORECASE | re.DOTALL)
+    def _parse_sql_from_response(self, response_text: str) -> str:
+        response_text = response_text.strip()
+        match = re.search(r"```sql\s*(.*?)\s*```", response_text, re.DOTALL | re.IGNORECASE)
         if match:
             sql = match.group(1).strip()
-            return sql.rstrip(";") + ";"
+        elif response_text.upper().startswith(('SELECT', 'WITH')):
+            sql = response_text.strip()
+        else:
+            logger.error(f"Ollama не вернула SQL. Ответ: {response_text}")
+            raise ValueError("AI не смог сгенерировать SQL. Попробуйте переформулировать вопрос.")
 
-        # 3. Ни SELECT, ни WITH → это ошибка
-        raise ValueError(f"Модель не вернула SQL. Ответ: {text}")
+        sql = re.sub(r'[\);\s]+$', '', sql)
+        return sql + ';'
 
     def generate_sql(self, user_prompt: str, history: list = None) -> str:
-        """
-        Главный метод.
-        """
-        # 1. Динамически строим промпт
         dynamic_system_prompt = self._build_system_prompt(user_prompt)
 
         messages_payload = [{'role': 'system', 'content': dynamic_system_prompt}]
@@ -155,7 +137,7 @@ class SQLGenerator:
 
         messages_payload.append({'role': 'user', 'content': f"Вопрос: {user_prompt}\nSQL:"})
 
-        logger.info(f"Отправка запроса в LLM (контекст ограничен релевантными таблицами)...")
+        logger.info(f"Отправка запроса в LLM...")
 
         try:
             response_raw = self.client.chat(
