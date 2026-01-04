@@ -4,6 +4,7 @@ from datetime import datetime
 from .models import DataSource, SchemaTable, SchemaColumn
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import URL
+import ollama
 
 logger = logging.getLogger(__name__)
 
@@ -182,3 +183,58 @@ def sync_database_schema(datasource: DataSource):
             exc_info=True,
         )
         return (False, f"Неизвестная ошибка: {e}")
+
+
+def run_vector_indexing():
+    """
+    Основная логика индексации (вынесена из management command).
+    """
+    logger.info("Запуск фоновой векторизации...")
+
+    OLLAMA_HOST = getattr(settings, 'OLLAMA_HOST', 'http://localhost:11434')
+    client = ollama.Client(host=OLLAMA_HOST)
+
+    # 1. Поиск модели (как мы делали раньше)
+    target_model_base = 'nomic-embed-text'
+    actual_model_name = 'nomic-embed-text'
+    try:
+        models_response = client.list()
+        available_models = [m['model'] for m in models_response['models']]
+        for m in available_models:
+            if target_model_base in m:
+                actual_model_name = m
+                break
+    except Exception as e:
+        logger.error(f"Векторизация прервана: Не удалось подключиться к Ollama. {e}")
+        return f"Ошибка подключения: {e}"
+
+    # 2. Индексация ТАБЛИЦ
+    tables = SchemaTable.objects.filter(is_enabled=True).exclude(description_ru__isnull=True).exclude(
+        description_ru__exact='')
+    tables_count = 0
+    for table in tables:
+        try:
+            response = client.embeddings(model=actual_model_name, prompt=table.description_ru)
+            table.embedding = response['embedding']
+            table.save(update_fields=['embedding'])
+            tables_count += 1
+        except Exception as e:
+            logger.error(f"Ошибка таблицы {table.table_name}: {e}")
+
+    # 3. Индексация КОЛОНОК
+    columns = SchemaColumn.objects.filter(is_enabled=True).exclude(description_ru__isnull=True).exclude(
+        description_ru__exact='')
+    cols_count = 0
+    for col in columns:
+        try:
+            text_to_embed = f"Таблица {col.schema_table.table_name}, колонка {col.column_name}: {col.description_ru}"
+            response = client.embeddings(model=actual_model_name, prompt=text_to_embed)
+            col.embedding = response['embedding']
+            col.save(update_fields=['embedding'])
+            cols_count += 1
+        except Exception as e:
+            logger.error(f"Ошибка колонки {col.column_name}: {e}")
+
+    result_msg = f"Успешно индексировано: {tables_count} таблиц, {cols_count} колонок. (Модель: {actual_model_name})"
+    logger.info(result_msg)
+    return result_msg

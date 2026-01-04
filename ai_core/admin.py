@@ -3,6 +3,8 @@ from django.conf import settings
 import ollama
 from .models import DataSource, SchemaTable, SchemaColumn
 from .services import sync_database_schema
+from .tasks import task_reindex_vectors
+
 
 # Колонки, которые мы ТОЧНО хотим видеть
 INTERESTING_KEYWORDS = [
@@ -156,3 +158,24 @@ class DataSourceAdmin(admin.ModelAdmin):
         if success_count > 0:
             messages.success(request, f"Синхронизировано {success_count} источников.")
 
+
+@admin.register(DataSource)
+class DataSourceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'engine', 'host', 'db_name', 'last_inspected', 'is_active')
+    actions = ['run_schema_sync', 'run_vectorization_bg']  # Добавили новый action
+
+    @admin.action(description='Запустить интроспекцию (Загрузить схему)')
+    def run_schema_sync(self, request, queryset):
+        # ... (старый код без изменений) ...
+        pass
+
+    # --- (НОВЫЙ ACTION) ---
+    @admin.action(description='🧠 Запустить Векторизацию (Фоновая задача)')
+    def run_vectorization_bg(self, request, queryset):
+        # Запускаем Celery задачу
+        task_reindex_vectors.delay()
+
+        # Мгновенно сообщаем админу
+        self.message_user(request,
+                          "Задача векторизации запущена в фоне! Процесс займет несколько минут. Проверьте логи позже.",
+                          level=messages.SUCCESS)
