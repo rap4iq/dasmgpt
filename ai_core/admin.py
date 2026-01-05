@@ -5,7 +5,9 @@ from .models import DataSource, SchemaTable, SchemaColumn
 from .services import sync_database_schema
 from .tasks import task_reindex_vectors
 
-
+# ==========================================
+# 🧠 ЭВРИСТИКА (Правила для авто-выбора колонок)
+# ==========================================
 # Колонки, которые мы ТОЧНО хотим видеть
 INTERESTING_KEYWORDS = [
     'name', 'title', 'status', 'type', 'category', 'city', 'region', 'country',  # Текст
@@ -19,7 +21,7 @@ INTERESTING_KEYWORDS = [
 JUNK_KEYWORDS = [
     'token', 'secret', 'password', 'hash', 'slug',
     'created_at', 'updated_at', 'modified', 'version',
-    'lft', 'rght', 'tree_id', 'level',  \
+    'lft', 'rght', 'tree_id', 'level',
     'is_staff', 'is_superuser', 'last_login'
 ]
 
@@ -27,10 +29,10 @@ JUNK_KEYWORDS = [
 def is_column_interesting(col_name):
     """Определяет, полезна ли колонка для аналитики."""
     col_name = col_name.lower()
-    if col_name == 'id': return False  # Технические ID часто не нужны, если есть имена
+    if col_name == 'id': return False
     if any(k in col_name for k in JUNK_KEYWORDS): return False
     if any(k in col_name for k in INTERESTING_KEYWORDS): return True
-    return False  # По умолчанию - нет (безопасный подход)
+    return False
 
 
 def generate_ai_desc_safe(prompt_text, model_name):
@@ -72,7 +74,7 @@ class SchemaTableAdmin(admin.ModelAdmin):
 
     columns_count.short_description = "Колонок"
 
-    # --- ACTION 1: Массовое включение (Ваш п. 1) ---
+    # --- ACTION 1: Массовое включение ---
     @admin.action(description="✅ Включить выбранные таблицы")
     def enable_tables(self, request, queryset):
         rows = queryset.update(is_enabled=True)
@@ -83,18 +85,9 @@ class SchemaTableAdmin(admin.ModelAdmin):
         rows = queryset.update(is_enabled=False)
         messages.success(request, f"Выключено таблиц: {rows}")
 
-    # --- ACTION 2: 🚀 ПОЛНАЯ АВТОМАТИЗАЦИЯ (Ваш п. 2) ---
+    # --- ACTION 2: 🚀 ПОЛНАЯ АВТОМАТИЗАЦИЯ ---
     @admin.action(description="🚀 AI: Полная авто-настройка (Описание + Колонки)")
     def auto_curate_table(self, request, queryset):
-        """
-        1. Включает таблицу.
-        2. Генерирует ей описание.
-        3. Пробегается по 100+ колонкам:
-           - Отключает мусор.
-           - Включает полезные.
-           - Определяет метрики/измерения.
-           - Генерирует описания для полезных.
-        """
         for table in queryset:
             # 1. Включаем таблицу
             table.is_enabled = True
@@ -102,7 +95,7 @@ class SchemaTableAdmin(admin.ModelAdmin):
             # 2. Описание таблицы (если нет)
             if not table.description_ru:
                 prompt = f"Опиши одной фразой на русском, какие данные хранит таблица '{table.table_name}' в базе аналитики."
-                desc = generate_ai_desc_safe(prompt, settings.OLLAMA_MODEL)
+                desc = generate_ai_desc_safe(prompt, settings.OLLAMA_SUMMARY_MODEL)
                 if desc: table.description_ru = desc
 
             table.save()
@@ -112,7 +105,6 @@ class SchemaTableAdmin(admin.ModelAdmin):
             enabled_count = 0
 
             for col in columns:
-                # Эвристика: Полезная или Мусор?
                 is_useful = is_column_interesting(col.column_name)
                 col.is_enabled = is_useful
 
@@ -121,17 +113,15 @@ class SchemaTableAdmin(admin.ModelAdmin):
                     name = col.column_name.lower()
                     dtype = col.data_type.upper()
 
-                    # Метрика или Измерение?
                     is_num = any(t in dtype for t in ['INT', 'DECIMAL', 'FLOAT', 'NUMERIC'])
                     if is_num and any(x in name for x in ['budget', 'cost', 'price', 'amount', 'sum', 'count', 'cnt']):
                         col.is_metric = True
                     else:
                         col.is_dimension = True
 
-                    # Описание колонки (если нет)
                     if not col.description_ru:
-                        prompt_col = f"Переведи название колонки '{col.column_name}' (таблица {table.table_name}) на русский бизнес-язык,с синонимами(минимум 2)."
-                        desc_col = generate_ai_desc_safe(prompt_col, settings.OLLAMA_MODEL)
+                        prompt_col = f"Переведи название колонки '{col.column_name}' (таблица {table.table_name}) на русский бизнес-язык, с синонимами (минимум 2)."
+                        desc_col = generate_ai_desc_safe(prompt_col, settings.OLLAMA_SUMMARY_MODEL)
                         if desc_col: col.description_ru = desc_col
 
                 col.save()
@@ -140,11 +130,10 @@ class SchemaTableAdmin(admin.ModelAdmin):
                              f"Таблица {table.table_name}: Обработано, включено {enabled_count} из {columns.count()} колонок.")
 
 
-# ... (SchemaColumnAdmin и DataSourceAdmin можно оставить как были или убрать, если используете Inline) ...
 @admin.register(DataSource)
 class DataSourceAdmin(admin.ModelAdmin):
     list_display = ('name', 'engine', 'host', 'db_name', 'last_inspected', 'is_active')
-    actions = ['run_schema_sync']
+    actions = ['run_schema_sync', 'run_vectorization_bg']  # Оба действия здесь
 
     @admin.action(description='Запустить интроспекцию (Загрузить схему)')
     def run_schema_sync(self, request, queryset):
@@ -158,18 +147,6 @@ class DataSourceAdmin(admin.ModelAdmin):
         if success_count > 0:
             messages.success(request, f"Синхронизировано {success_count} источников.")
 
-
-@admin.register(DataSource)
-class DataSourceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'engine', 'host', 'db_name', 'last_inspected', 'is_active')
-    actions = ['run_schema_sync', 'run_vectorization_bg']  # Добавили новый action
-
-    @admin.action(description='Запустить интроспекцию (Загрузить схему)')
-    def run_schema_sync(self, request, queryset):
-        # ... (старый код без изменений) ...
-        pass
-
-    # --- (НОВЫЙ ACTION) ---
     @admin.action(description='🧠 Запустить Векторизацию (Фоновая задача)')
     def run_vectorization_bg(self, request, queryset):
         # Запускаем Celery задачу
