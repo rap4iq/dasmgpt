@@ -8,16 +8,14 @@ from .tasks import task_reindex_vectors
 # ==========================================
 # 🧠 ЭВРИСТИКА (Правила для авто-выбора колонок)
 # ==========================================
-# Колонки, которые мы ТОЧНО хотим видеть
 INTERESTING_KEYWORDS = [
-    'name', 'title', 'status', 'type', 'category', 'city', 'region', 'country',  # Текст
-    'date', 'year', 'month', 'day', 'time',  # Даты
-    'price', 'cost', 'budget', 'amount', 'total', 'sum', 'revenue', 'profit',  # Деньги
-    'count', 'qty', 'quantity', 'rate', 'score', 'percent', 'ratio',  # Числа
-    'user', 'client', 'manager', 'agent', 'owner'  # Люди
+    'name', 'title', 'status', 'type', 'category', 'city', 'region', 'country',
+    'date', 'year', 'month', 'day', 'time',
+    'price', 'cost', 'budget', 'amount', 'total', 'sum', 'revenue', 'profit',
+    'count', 'qty', 'quantity', 'rate', 'score', 'percent', 'ratio',
+    'user', 'client', 'manager', 'agent', 'owner'
 ]
 
-# Колонки, которые мы ТОЧНО НЕ хотим (мусор)
 JUNK_KEYWORDS = [
     'token', 'secret', 'password', 'hash', 'slug',
     'created_at', 'updated_at', 'modified', 'version',
@@ -56,7 +54,7 @@ class SchemaColumnInline(admin.TabularInline):
     can_delete = False
 
 
-@admin.register(SchemaTable)
+# Убрали декоратор @admin.register
 class SchemaTableAdmin(admin.ModelAdmin):
     list_display = ('table_name', 'data_source', 'is_enabled', 'short_desc', 'columns_count')
     list_filter = ('data_source', 'is_enabled')
@@ -74,7 +72,6 @@ class SchemaTableAdmin(admin.ModelAdmin):
 
     columns_count.short_description = "Колонок"
 
-    # --- ACTION 1: Массовое включение ---
     @admin.action(description="✅ Включить выбранные таблицы")
     def enable_tables(self, request, queryset):
         rows = queryset.update(is_enabled=True)
@@ -85,14 +82,11 @@ class SchemaTableAdmin(admin.ModelAdmin):
         rows = queryset.update(is_enabled=False)
         messages.success(request, f"Выключено таблиц: {rows}")
 
-    # --- ACTION 2: 🚀 ПОЛНАЯ АВТОМАТИЗАЦИЯ ---
     @admin.action(description="🚀 AI: Полная авто-настройка (Описание + Колонки)")
     def auto_curate_table(self, request, queryset):
         for table in queryset:
-            # 1. Включаем таблицу
             table.is_enabled = True
 
-            # 2. Описание таблицы (если нет)
             if not table.description_ru:
                 prompt = f"Опиши одной фразой на русском, какие данные хранит таблица '{table.table_name}' в базе аналитики."
                 desc = generate_ai_desc_safe(prompt, settings.OLLAMA_SUMMARY_MODEL)
@@ -100,7 +94,6 @@ class SchemaTableAdmin(admin.ModelAdmin):
 
             table.save()
 
-            # 3. Работа с колонками (Фильтр 100+ столбцов)
             columns = table.columns.all()
             enabled_count = 0
 
@@ -130,10 +123,103 @@ class SchemaTableAdmin(admin.ModelAdmin):
                              f"Таблица {table.table_name}: Обработано, включено {enabled_count} из {columns.count()} колонок.")
 
 
-@admin.register(DataSource)
+# ==========================================
+# 📊 КОЛОНКИ (SchemaColumn) - Отдельная страница
+# ==========================================
+# Убрали декоратор @admin.register
+class SchemaColumnAdmin(admin.ModelAdmin):
+    list_display = ('column_name', 'get_table', 'data_type', 'is_enabled', 'short_desc', 'is_metric', 'is_dimension')
+    list_editable = ('is_enabled', 'is_metric', 'is_dimension')
+    list_filter = (
+        'is_enabled',
+        'is_metric',
+        'is_dimension',
+        'schema_table__table_name'
+    )
+    search_fields = ('column_name', 'description_ru', 'schema_table__table_name')
+    list_per_page = 100
+    actions = ['generate_column_desc', 'auto_detect_type', 'enable_selected', 'disable_selected']
+
+    def get_table(self, obj):
+        return obj.schema_table.table_name
+
+    get_table.short_description = "Таблица"
+
+    def short_desc(self, obj):
+        return obj.description_ru[:40] + "..." if obj.description_ru else "-"
+
+    short_desc.short_description = "Описание"
+
+    @admin.action(description="✨ AI: Сгенерировать описание колонки")
+    def generate_column_desc(self, request, queryset):
+        count = 0
+        for col in queryset:
+            prompt = f"""
+            Ты - Data Engineer. Переведи техническое название колонки в понятное бизнес-описание на РУССКОМ языке.
+            Используй синонимы, чтобы поиск работал лучше.
+
+            Таблица: "{col.schema_table.table_name}"
+            Колонка: "{col.column_name}"
+            Тип данных: {col.data_type}
+
+            Примеры:
+            "budget_usd" -> "Бюджет в долларах, расходы, стоимость, затраты"
+            "click_cnt" -> "Количество кликов, переходы"
+            "client_nm" -> "Имя клиента, название бренда"
+
+            Твой ответ (только текст описания):
+            """
+
+            desc = generate_ai_desc_safe(prompt, settings.OLLAMA_SUMMARY_MODEL)
+            if desc:
+                col.description_ru = desc.replace('"', '').replace("'", "")
+                col.save(update_fields=['description_ru'])
+                count += 1
+
+        messages.success(request, f"AI сгенерировал описания для {count} колонок.")
+
+    @admin.action(description="⚡ Авто-расстановка Метрик/Измерений")
+    def auto_detect_type(self, request, queryset):
+        for col in queryset:
+            name = col.column_name.lower()
+            dtype = col.data_type.upper()
+
+            if any(x in name for x in
+                   ['budget', 'cost', 'price', 'amount', 'sum', 'count', 'cnt', 'qty', 'rate', 'score', 'impressions',
+                    'clicks']):
+                if 'INT' in dtype or 'DECIMAL' in dtype or 'FLOAT' in dtype or 'NUMERIC' in dtype:
+                    col.is_metric = True
+                    col.is_dimension = False
+
+            elif any(x in name for x in
+                     ['name', 'title', 'type', 'category', 'city', 'region', 'source', 'medium', 'date', 'year',
+                      'month']):
+                col.is_metric = False
+                col.is_dimension = True
+
+            elif '_id' in name or name == 'id':
+                col.is_metric = False
+                col.is_dimension = True
+
+            col.save()
+        messages.success(request, "Типы колонок обновлены эвристикой.")
+
+    @admin.action(description="✅ Включить выбранные")
+    def enable_selected(self, request, queryset):
+        queryset.update(is_enabled=True)
+
+    @admin.action(description="❌ Выключить выбранные")
+    def disable_selected(self, request, queryset):
+        queryset.update(is_enabled=False)
+
+
+# ==========================================
+# 🔌 ИСТОЧНИКИ (DataSource)
+# ==========================================
+# Убрали декоратор @admin.register
 class DataSourceAdmin(admin.ModelAdmin):
     list_display = ('name', 'engine', 'host', 'db_name', 'last_inspected', 'is_active')
-    actions = ['run_schema_sync', 'run_vectorization_bg']  # Оба действия здесь
+    actions = ['run_schema_sync', 'run_vectorization_bg']
 
     @admin.action(description='Запустить интроспекцию (Загрузить схему)')
     def run_schema_sync(self, request, queryset):
@@ -149,10 +235,25 @@ class DataSourceAdmin(admin.ModelAdmin):
 
     @admin.action(description='🧠 Запустить Векторизацию (Фоновая задача)')
     def run_vectorization_bg(self, request, queryset):
-        # Запускаем Celery задачу
         task_reindex_vectors.delay()
-
-        # Мгновенно сообщаем админу
         self.message_user(request,
                           "Задача векторизации запущена в фоне! Процесс займет несколько минут. Проверьте логи позже.",
                           level=messages.SUCCESS)
+
+
+
+
+try:
+    admin.site.register(SchemaTable, SchemaTableAdmin)
+except admin.sites.AlreadyRegistered:
+    pass
+
+try:
+    admin.site.register(SchemaColumn, SchemaColumnAdmin)
+except admin.sites.AlreadyRegistered:
+    pass
+
+try:
+    admin.site.register(DataSource, DataSourceAdmin)
+except admin.sites.AlreadyRegistered:
+    pass
