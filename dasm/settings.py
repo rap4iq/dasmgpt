@@ -224,17 +224,20 @@ LOGIN_REDIRECT_URL = '/admin-panel/dashboard/'
 LOGOUT_REDIRECT_URL = '/users/login/'
 
 # Redis broker + result backend
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
+# CELERY_BROKER_URL = 'redis://localhost:6379/0'
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
 
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # сек
 
-OLLAMA_HOST = 'http://localhost:11434'
-OLLAMA_MODEL = 'llama2:13b'
+# OLLAMA_HOST = 'http://localhost:11434'
+OLLAMA_HOST = config('OLLAMA_HOST', default='http://localhost:11434')
+OLLAMA_SQL_MODEL = config('OLLAMA_SQL_MODEL', default='llama2:13b')
+OLLAMA_MODEL = config('OLLAMA_SUMMARY_MODEL', default='llama2:13b')
 OLLAMA_SQL_TEMPERATURE = 0.0
 OLLAMA_TEMPERATURE = 1.0
-OLLAMA_SQL_MODEL = 'llama2:13b'
 
 QUERY_ROW_LIMIT = 1000
 QUERY_TIMEOUT_MS = 30000
