@@ -26,7 +26,7 @@ class SQLGenerator:
             # Пытаемся найти правильное имя модели в списке
             try:
                 models_list = self.client.list()
-                available_models = [mф['model'] for m in models_list['models']]
+                available_models = [m['model'] for m in models_list['models']]
                 for m in available_models:
                     if 'nomic-embed-text' in m:
                         self.embedding_model = m
