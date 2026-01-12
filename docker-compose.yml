@@ -52,7 +52,25 @@ services:
       - db
       - redis
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dasmgpt-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Если на сервере есть GPU и вы хотите его использовать, раскомментируйте это:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    restart: always
+
 # Тома для хранения данных (чтобы не исчезли при перезапуске)
 volumes:
   postgres_data:
   static_volume:
+  ollama_data: # <--- Добавить это

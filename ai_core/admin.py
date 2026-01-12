@@ -5,9 +5,7 @@ from .models import DataSource, SchemaTable, SchemaColumn
 from .services import sync_database_schema
 from .tasks import task_reindex_vectors
 
-# ==========================================
-# 🧠 ЭВРИСТИКА (Правила для авто-выбора колонок)
-# ==========================================
+
 INTERESTING_KEYWORDS = [
     'name', 'title', 'status', 'type', 'category', 'city', 'region', 'country',
     'date', 'year', 'month', 'day', 'time',

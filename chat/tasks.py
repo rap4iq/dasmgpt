@@ -70,7 +70,7 @@ def get_ai_response(self, session_id, user_prompt):
         db_executor = DatabaseExecutor(datasource=active_datasource)
         chart_gen = ChartGenerator()
         response_formatter = ResponseFormatter(
-            model_name=settings.OLLAMA_MODEL,
+            model_name=settings.OLLAMA_SUMMARY_MODEL,
             host=settings.OLLAMA_HOST,
             temperature=settings.OLLAMA_TEMPERATURE
         )

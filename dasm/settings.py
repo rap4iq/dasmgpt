@@ -212,7 +212,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -235,7 +236,7 @@ CELERY_TASK_TIME_LIMIT = 300  # сек
 # OLLAMA_HOST = 'http://localhost:11434'
 OLLAMA_HOST = config('OLLAMA_HOST', default='http://localhost:11434')
 OLLAMA_SQL_MODEL = config('OLLAMA_SQL_MODEL', default='llama2:13b')
-OLLAMA_MODEL = config('OLLAMA_SUMMARY_MODEL', default='llama2:13b')
+OLLAMA_SUMMARY_MODEL = config('OLLAMA_SUMMARY_MODEL', default='llama2:13b')
 OLLAMA_SQL_TEMPERATURE = 0.0
 OLLAMA_TEMPERATURE = 1.0
 

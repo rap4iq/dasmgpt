@@ -1,6 +1,8 @@
 from django.db.utils import OperationalError
 import logging
 from datetime import datetime
+
+from dasm import settings
 from .models import DataSource, SchemaTable, SchemaColumn
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import URL
