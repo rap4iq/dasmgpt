@@ -11,31 +11,28 @@ logger = logging.getLogger(__name__)
 class SQLGenerator:
     """
     Отвечает за "Звонок 1" к Ollama.
-    ВЕРСИЯ 3.5: Авто-определение имени модели эмбеддингов.
+    ВЕРСИЯ 3.5: Добавлены кавычки для таблиц и колонок (Postgres Case-Sensitivity).
     """
 
     def __init__(self, model_name: str, host: str, temperature: float):
         self.model_name = model_name
         self.host = host
         self.temperature = temperature
-
-        # Дефолтное имя
-        self.embedding_model = 'nomic-embed-text'
+        self.embedding_model = 'nomic-embed-text'  # Дефолтное значение
 
         try:
             self.client = ollama.Client(host=self.host)
 
-            # (НОВОЕ) Пытаемся найти правильное имя модели в списке
+            # Пытаемся найти правильное имя модели в списке
             try:
                 models_list = self.client.list()
-                available_models = [m['model'] for m in models_list['models']]
+                available_models = [mф['model'] for m in models_list['models']]
                 for m in available_models:
                     if 'nomic-embed-text' in m:
                         self.embedding_model = m
                         break
-                logger.info(f"SQLGenerator использует эмбеддинг-модель: {self.embedding_model}")
             except:
-                logger.warning("Не удалось получить список моделей Ollama, используем дефолтное имя 'nomic-embed-text'")
+                pass  # Используем дефолт
 
         except Exception as e:
             logger.error(f"Не удалось подключиться к Ollama: {e}")
@@ -46,11 +43,8 @@ class SQLGenerator:
             response = self.client.embeddings(model=self.embedding_model, prompt=text)
             return response['embedding']
         except Exception as e:
-            logger.error(f"Ошибка генерации вектора для запроса (Модель {self.embedding_model}): {e}")
-            raise ValueError(f"Не удалось векторизовать запрос. Проверьте модель '{self.embedding_model}'.")
-
-    # ... (Остальные методы: _find_relevant_tables, _build_system_prompt, _parse_sql_from_response, generate_sql) ...
-    # ОНИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ, КОПИРУЙТЕ ИХ ИЗ ПРОШЛОЙ ВЕРСИИ
+            logger.error(f"Ошибка генерации вектора: {e}")
+            raise ValueError("Не удалось векторизовать запрос.")
 
     def _find_relevant_tables(self, user_prompt: str, limit: int = 5):
         logger.info(f"Маршрутизатор: Ищу таблицы для '{user_prompt}'...")
@@ -72,12 +66,26 @@ class SQLGenerator:
             data_source__is_active=True
         )
 
-        found_names = [t.table_name for t in relevant_tables]
-        logger.info(f"Маршрутизатор: Найдено {len(found_names)} релевантных таблиц: {found_names}")
-
+        # (ВАЖНО) Если ничего не нашли по колонкам, ищем по именам таблиц (резерв)
         if not relevant_tables.exists():
-            logger.warning("Маршрутизатор: Векторный поиск не дал результатов! Использую дефолтные таблицы.")
-            return SchemaTable.objects.filter(is_enabled=True)[:3]
+            # Простой поиск по вхождению слов (без векторов, как план Б)
+            prompt_words = user_prompt.lower().split()
+            potential_ids = []
+            for word in prompt_words:
+                if len(word) > 3:
+                    matches = SchemaTable.objects.filter(
+                        is_enabled=True,
+                        table_name__icontains=word,
+                        data_source__is_active=True
+                    ).values_list('id', flat=True)
+                    potential_ids.extend(matches)
+
+            if potential_ids:
+                relevant_tables = SchemaTable.objects.filter(id__in=potential_ids)
+                logger.info(f"Маршрутизатор (Fallback): Найдено по имени: {[t.table_name for t in relevant_tables]}")
+            else:
+                logger.warning("Маршрутизатор: Ничего не найдено. Использую дефолтные таблицы.")
+                return SchemaTable.objects.filter(is_enabled=True)[:3]
 
         return relevant_tables
 
@@ -87,26 +95,35 @@ class SQLGenerator:
         generated_ddl = []
         instructions = [
             "Ты - SQL-генератор для PostgreSQL.",
-            "Твоя задача: сгенерировать ОДИН SQL-запрос, отвечающий на вопрос пользователя.",
+            "Твоя задача: сгенерировать ОДИН SQL-запрос.",
             "1. Используй ТОЛЬКО предоставленные ниже таблицы.",
-            "2. НЕ используй Markdown (```sql ... ```). Только чистый код.",
-            "3. Для поиска текста (VARCHAR) используй 'ILIKE'.",
-            "4. ВАЖНО: Если пользователь ищет категорию, ищи варианты на РУССКОМ (ILIKE '%...%') ИЛИ на АНГЛИЙСКОМ (ILIKE '%...%'), используя OR.",
-            "5. ПРАВИЛО: Если ты фильтруешь (WHERE) или сортируешь (ORDER BY) по колонке, ты ОБЯЗАН добавить эту колонку в SELECT.",
-            "6. Если вопрос 'Где...', включи в SELECT не только локацию, но и ключевые метрики (бюджет, продажи).",
+            "2. НЕ используй Markdown. Только чистый код.",
+            "3. Для поиска текста используй 'ILIKE'.",
+            "4. ВАЖНО: Названия таблиц и колонок могут быть в разном регистре.",
+            "   ВСЕГДА используй двойные кавычки для имен таблиц и колонок (например: SELECT \"Title\" FROM \"YouTubeVideos\").",
+            # <--- НОВАЯ ИНСТРУКЦИЯ
+            "5. Если фильтруешь/сортируешь по колонке, добавь её в SELECT.",
             "\nСХЕМА БД:",
         ]
 
         for table in target_tables:
             desc = f" ({table.description_ru})" if table.description_ru else ""
-            generated_ddl.append(f"-- Таблица: {table.table_name}{desc}")
-            generated_ddl.append(f"CREATE TABLE {table.table_name} (")
+
+            # (ИЗМЕНЕНО) Оборачиваем имя таблицы в кавычки прямо в промпте
+            table_name_quoted = f'"{table.table_name}"'
+
+            generated_ddl.append(f"-- Таблица: {table_name_quoted}{desc}")
+            generated_ddl.append(f"CREATE TABLE {table_name_quoted} (")
 
             enabled_columns = table.columns.filter(is_enabled=True)
             col_defs = []
             for col in enabled_columns:
                 c_desc = f" -- {col.description_ru}" if col.description_ru else ""
-                col_defs.append(f"  {col.column_name} {col.data_type}{c_desc}")
+
+                # (ИЗМЕНЕНО) Оборачиваем имя колонки в кавычки
+                col_name_quoted = f'"{col.column_name}"'
+
+                col_defs.append(f"  {col_name_quoted} {col.data_type}{c_desc}")
 
             generated_ddl.append(",\n".join(col_defs))
             generated_ddl.append(");\n")
@@ -116,16 +133,16 @@ class SQLGenerator:
     def _parse_sql_from_response(self, response_text: str) -> str:
         response_text = response_text.strip()
         match = re.search(r"```sql\s*(.*?)\s*```", response_text, re.DOTALL | re.IGNORECASE)
-        if match:
-            sql = match.group(1).strip()
-        elif response_text.upper().startswith(('SELECT', 'WITH')):
-            sql = response_text.strip()
-        else:
-            logger.error(f"Ollama не вернула SQL. Ответ: {response_text}")
-            raise ValueError("AI не смог сгенерировать SQL. Попробуйте переформулировать вопрос.")
+        if match: return match.group(1).strip().rstrip(';') + ';'
+        if response_text.upper().startswith(('SELECT', 'WITH')): return response_text.rstrip(';') + ';'
 
-        sql = re.sub(r'[\);\s]+$', '', sql)
-        return sql + ';'
+        # Попытка найти SELECT если нет markdown
+        match_select = re.search(r"(SELECT .*?;)", response_text, re.DOTALL | re.IGNORECASE)
+        if match_select:
+            return match_select.group(1).strip()
+
+        logger.error(f"Ollama не вернула SQL. Ответ: {response_text}")
+        raise ValueError("AI не смог сгенерировать SQL. Ответ не содержит кода.")
 
     def generate_sql(self, user_prompt: str, history: list = None) -> str:
         dynamic_system_prompt = self._build_system_prompt(user_prompt)
@@ -147,6 +164,9 @@ class SQLGenerator:
             )
 
             sql_query = self._parse_sql_from_response(response_raw['message']['content'])
+            # Доп. очистка от мусора
+            sql_query = re.sub(r'[\);\s]+$', '', sql_query) + ';'
+
             logger.info(f"SQL получен: {sql_query}")
             return sql_query
 
